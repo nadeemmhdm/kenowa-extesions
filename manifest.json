@@ -1,0 +1,35 @@
+{
+    "manifest_version": 3,
+    "name": "Kenowa AI Assistant",
+    "version": "1.0",
+    "description": "Your premium AI companion for the web.",
+    "permissions": [
+        "sidePanel",
+        "storage",
+        "activeTab",
+        "scripting",
+        "tabs"
+    ],
+    "host_permissions": [
+        "https://bot-buddy-studio.pages.dev/*",
+        "<all_urls>"
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "side_panel": {
+        "default_path": "sidepanel.html"
+    },
+    "action": {
+        "default_title": "Open Kenowa AI"
+    },
+    "commands": {
+        "_execute_side_panel": {
+            "suggested_key": {
+                "default": "Ctrl+Shift+3",
+                "mac": "Command+Shift+3"
+            },
+            "description": "Open the AI Side Panel"
+        }
+    }
+}
