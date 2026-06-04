@@ -130,3 +130,54 @@ function parseMarkdown(text) {
 function formatDate(timestamp) {
     return new Date(parseInt(timestamp)).toLocaleString();
 }
+
+// ============================================================
+// CRYPTO: AES-GCM Encryption for Secure Sync
+// ============================================================
+
+async function deriveKey(password, salt) {
+    const enc = new TextEncoder();
+    const keyMaterial = await window.crypto.subtle.importKey(
+        "raw", enc.encode(password), { name: "PBKDF2" }, false, ["deriveKey"]
+    );
+    return window.crypto.subtle.deriveKey(
+        { name: "PBKDF2", salt: salt, iterations: 100000, hash: "SHA-256" },
+        keyMaterial, { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]
+    );
+}
+
+async function encryptData(text, password) {
+    const enc = new TextEncoder();
+    const salt = window.crypto.getRandomValues(new Uint8Array(16));
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+    const key = await deriveKey(password, salt);
+    const encrypted = await window.crypto.subtle.encrypt(
+        { name: "AES-GCM", iv: iv }, key, enc.encode(text)
+    );
+    
+    // Package into a single base64 string
+    const encryptedArray = new Uint8Array(encrypted);
+    const combined = new Uint8Array(salt.length + iv.length + encryptedArray.length);
+    combined.set(salt, 0);
+    combined.set(iv, salt.length);
+    combined.set(encryptedArray, salt.length + iv.length);
+    
+    return btoa(String.fromCharCode.apply(null, combined));
+}
+
+async function decryptData(base64Ciphertext, password) {
+    const combined = new Uint8Array(atob(base64Ciphertext).split('').map(c => c.charCodeAt(0)));
+    const salt = combined.slice(0, 16);
+    const iv = combined.slice(16, 28);
+    const data = combined.slice(28);
+    
+    const key = await deriveKey(password, salt);
+    try {
+        const decrypted = await window.crypto.subtle.decrypt(
+            { name: "AES-GCM", iv: iv }, key, data
+        );
+        return new TextDecoder().decode(decrypted);
+    } catch (e) {
+        throw new Error("Decryption failed. Incorrect password or corrupted data.");
+    }
+}

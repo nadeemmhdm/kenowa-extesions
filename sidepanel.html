@@ -89,6 +89,9 @@
               <button id="sq-btn" class="icon-btn-small" title="Solve Question — Ctrl+Shift+Q">
                 <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
               </button>
+              <button id="scan-page-btn" class="icon-btn-small" title="Scan Webpage / RAG (Alt+S)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+              </button>
             </div>
             <div class="right-controls">
               <button id="send-btn" class="send-btn" title="Send">
@@ -170,8 +173,34 @@
           </optgroup>
         </select>
 
-        <button id="save-settings-btn" class="primary-btn" style="width:100%;margin-bottom:16px;">Save</button>
-        <hr style="border:none;border-top:1px solid var(--border);margin:0 0 16px;">
+        <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">AI Persona</label>
+        <select id="settings-persona-input" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:20px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
+          <option value="default">Default Assistant</option>
+          <option value="developer">Senior Developer (Code Only)</option>
+          <option value="proofreader">Proofreader (Fix Grammar)</option>
+          <option value="studybuddy">Study Buddy (Quiz Me)</option>
+        </select>
+
+        <div style="border-top:1px solid var(--border); margin: 20px 0; padding-top: 20px;">
+          <h3 style="font-size:0.9rem; color:var(--accent); margin-bottom: 10px;">🔒 Secure Cloud Sync</h3>
+          <p style="font-size:0.75rem; color:var(--text-sub); margin-bottom:10px;">End-to-end encrypted backup to Chrome Sync. Requires a master password to encrypt chats before uploading.</p>
+          
+          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Master Sync Password</label>
+          <div style="position:relative;">
+            <input type="password" id="settings-sync-pass" placeholder="Create a strong password" style="width:100%;border:1px solid var(--border);padding:10px 36px 10px 10px;border-radius:6px;margin-bottom:10px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
+            <button data-key-toggle="settings-sync-pass" style="position:absolute;right:8px;top:10px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;">👁</button>
+          </div>
+          
+          <div style="display:flex; gap:10px;">
+            <button id="btn-sync-backup" class="primary-btn" style="flex:1; padding:10px; border-radius:6px; cursor:pointer; background:var(--accent); color:#fff; border:none; font-weight:600;">Backup to Cloud</button>
+            <button id="btn-sync-restore" class="primary-btn" style="flex:1; padding:10px; border-radius:6px; cursor:pointer; background:var(--bg-elevated); color:var(--text-main); border:1px solid var(--border); font-weight:600;">Restore Data</button>
+          </div>
+        </div>
+
+        <button id="save-settings-btn" class="primary-btn" style="width:100%;padding:14px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-weight:600;font-size:0.95rem;cursor:pointer;margin-top:10px;transition:background 0.2s, transform 0.1s;">
+          Save Settings
+        </button>
+        <hr style="border:none;border-top:1px solid var(--border);margin:20px 0 16px;">
         <button id="clear-data-btn" class="danger-btn">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
           Clear All Data

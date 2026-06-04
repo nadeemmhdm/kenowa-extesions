@@ -16,6 +16,7 @@ let historyList, typingIndicator, modeSelector, micBtn;
 // let authModal, authFormContainer, maintenanceMsg, authUsernameInput, authPasswordInput, authSubmitBtn, authError, tabSignin, tabSignup, authTitle;
 let lessonModal, lessonTitle, lessonText, lessonImage, lessonDots, lessonPrevBtn, lessonNextBtn, lessonSkipBtn;
 let examDelayInput;
+let scanPageBtn, personaSelector, syncPassInput, btnSyncBackup, btnSyncRestore;
 
 // ── State ──────────────────────────────────────────────────────
 let currentChatId   = null;
@@ -429,6 +430,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     historyList      = document.getElementById('history-list');
     typingIndicator  = document.getElementById('typing-indicator');
     examDelayInput   = document.getElementById('settings-exam-delay-input');
+    scanPageBtn      = document.getElementById('scan-page-btn');
+    personaSelector  = document.getElementById('settings-persona-input');
+    syncPassInput    = document.getElementById('settings-sync-pass');
+    btnSyncBackup    = document.getElementById('btn-sync-backup');
+    btnSyncRestore   = document.getElementById('btn-sync-restore');
 //     authModal        = document.getElementById('auth-modal');
     authFormContainer= document.getElementById('auth-form-container');
     maintenanceMsg   = document.getElementById('maintenance-msg');
@@ -471,6 +477,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if(attachBtn&&fileInput){ attachBtn.addEventListener('click',()=>fileInput.click()); fileInput.addEventListener('change',handleFileSelect); }
     if(sqBtn) sqBtn.addEventListener('click',handleSQ);
     if(examModeBtn) examModeBtn.addEventListener('click',toggleExamMode);
+    if(scanPageBtn) scanPageBtn.addEventListener('click',scanCurrentPage);
+    if(btnSyncBackup) btnSyncBackup.addEventListener('click',backupToCloud);
+    if(btnSyncRestore) btnSyncRestore.addEventListener('click',restoreFromCloud);
 
     const settingsBtn = document.getElementById('settings-btn');
     const settingsModal = document.getElementById('settings-modal');
@@ -488,6 +497,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (openRouterKeyInput) openRouterKeyInput.value = localStorage.getItem('kenowa_openrouter_key') || '';
         if (ollamaKeyInput) ollamaKeyInput.value = localStorage.getItem('kenowa_ollama_key') || '';
         if (modelInput) modelInput.value = localStorage.getItem('kenowa_model') || 'gemini-2.0-flash';
+        if (personaSelector) personaSelector.value = localStorage.getItem('kenowa_persona') || 'default';
         if (examDelayInput) examDelayInput.checked = localStorage.getItem('kenowa_exam_delay') === 'true';
         if (settingsModal) { settingsModal.classList.remove('hidden'); document.body.classList.add('modal-open'); }
     });
@@ -502,6 +512,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (openRouterKeyInput) localStorage.setItem('kenowa_openrouter_key', openRouterKeyInput.value);
         if (ollamaKeyInput) localStorage.setItem('kenowa_ollama_key', ollamaKeyInput.value);
         if (modelInput) localStorage.setItem('kenowa_model', modelInput.value);
+        if (personaSelector) localStorage.setItem('kenowa_persona', personaSelector.value);
         if (examDelayInput) localStorage.setItem('kenowa_exam_delay', examDelayInput.checked ? 'true' : 'false');
         if (settingsModal) { settingsModal.classList.add('hidden'); document.body.classList.remove('modal-open'); }
         showToast('Settings saved successfully', 'success');
@@ -731,14 +742,139 @@ function saveToHistory(role,content,images,chatId=null) {
     if(typeof updateExportButtonVisibility === 'function') updateExportButtonVisibility();
 }
 
+// ── Advanced Features Helpers ─────────────────────────────────────
+function getSystemPrompt() {
+    const persona = localStorage.getItem('kenowa_persona') || 'default';
+    if (persona === 'developer') return "You are an elite Senior Developer. Provide only code and technical explanations. Be concise and accurate.";
+    if (persona === 'proofreader') return "You are an expert Proofreader. Fix grammar, spelling, and tone. Output only the improved text with a brief explanation of changes.";
+    if (persona === 'studybuddy') return "You are a Study Buddy. Instead of giving direct answers, ask leading questions to help the user learn and think critically.";
+    return "You are Kenowa AI, a helpful, secure, and offline-first assistant.";
+}
+
+async function scanCurrentPage() {
+    try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tabs?.length || !tabs[0].url || tabs[0].url.startsWith('chrome://')) {
+            appendMessage('ai', '⚠️ Cannot scan this page.'); return;
+        }
+        appendMessage('user', 'Scan this webpage for context.', []);
+        showTypingIndicator('📄 Scanning webpage...');
+        const res = await chrome.scripting.executeScript({
+            target: { tabId: tabs[0].id },
+            func: () => document.body.innerText
+        });
+        const text = res[0]?.result || '';
+        if (!text.trim()) throw new Error('Page is empty');
+        hideTypingIndicator();
+        handleSend(`I have extracted the following text from the current webpage. Please provide a brief summary, and wait for my questions.\\n\\n${text.substring(0, 15000)}`);
+    } catch(err) {
+        hideTypingIndicator();
+        appendMessage('ai', `⚠️ Failed to scan page: ${err.message}`);
+    }
+}
+
+async function backupToCloud() {
+    const pass = syncPassInput?.value;
+    if (!pass) { showToast('⚠️ Please enter a Master Password first', 'error'); return; }
+    if (btnSyncBackup) btnSyncBackup.textContent = 'Encrypting...';
+    try {
+        // Strip images from backup to save space, sync quota is tiny (100KB)
+        const strippedChats = JSON.parse(JSON.stringify(chats));
+        for (let cid in strippedChats) {
+            strippedChats[cid].messages.forEach(m => m.images = []);
+        }
+        
+        const dataStr = JSON.stringify(strippedChats);
+        const encrypted = await encryptData(dataStr, pass);
+        
+        // Chunking for chrome.storage.sync (8KB per item limit)
+        const chunkSize = 7500;
+        const numChunks = Math.ceil(encrypted.length / chunkSize);
+        
+        if (numChunks > 12) { 
+            throw new Error('Data too large for Cloud Sync (100KB limit). Please delete some chats.');
+        }
+
+        const dataToSave = { kenowa_backup_chunks: numChunks };
+        for (let i = 0; i < numChunks; i++) {
+            dataToSave[`kenowa_backup_${i}`] = encrypted.substring(i * chunkSize, (i + 1) * chunkSize);
+        }
+        
+        // Clear old chunks first to avoid dangling data
+        await chrome.storage.sync.clear();
+        await chrome.storage.sync.set(dataToSave);
+        
+        showToast('✅ Encrypted Backup Saved to Cloud', 'success');
+    } catch(err) {
+        showToast(`❌ Backup failed: ${err.message.substring(0,30)}`, 'error');
+    }
+    if (btnSyncBackup) btnSyncBackup.textContent = 'Backup to Cloud';
+}
+
+async function restoreFromCloud() {
+    const pass = syncPassInput?.value;
+    if (!pass) { showToast('⚠️ Please enter your Master Password', 'error'); return; }
+    if (btnSyncRestore) btnSyncRestore.textContent = 'Decrypting...';
+    try {
+        const meta = await chrome.storage.sync.get('kenowa_backup_chunks');
+        let assembled = '';
+        
+        if (!meta.kenowa_backup_chunks) {
+            // Fallback for non-chunked legacy backup
+            const legacy = await chrome.storage.sync.get('kenowa_backup');
+            if (!legacy.kenowa_backup) throw new Error('No backup found in cloud');
+            assembled = legacy.kenowa_backup;
+        } else {
+            const numChunks = meta.kenowa_backup_chunks;
+            const keys = [];
+            for (let i = 0; i < numChunks; i++) keys.push(`kenowa_backup_${i}`);
+            
+            const chunksData = await chrome.storage.sync.get(keys);
+            for (let i = 0; i < numChunks; i++) {
+                if (!chunksData[`kenowa_backup_${i}`]) throw new Error('Backup corrupted');
+                assembled += chunksData[`kenowa_backup_${i}`];
+            }
+        }
+
+        const decrypted = await decryptData(assembled, pass);
+        chats = JSON.parse(decrypted);
+        await saveChats();
+        showToast('✅ Backup Restored Successfully', 'success');
+        if (chats[currentChatId]) {
+            if (messagesList) messagesList.innerHTML = '';
+            chats[currentChatId].messages.forEach(m => appendMessage(m.role, m.content, m.images, false, true));
+        }
+    } catch(err) {
+        showToast(`❌ Restore failed: ${err.message.substring(0,30)}`, 'error');
+    }
+    if (btnSyncRestore) btnSyncRestore.textContent = 'Restore Data';
+}
+
 // ── Send & API ─────────────────────────────────────────────────
 async function handleSend(textOverride=null) {
-    const text=textOverride||(userInput?userInput.value.trim():'');
+    let text=textOverride||(userInput?userInput.value.trim():'');
     const hasImages=currentDraftImages.length>0;
     if(!text&&!hasImages) return;
     const isOk=await checkAccountStatus(); if(!isOk) return;
     const imagesToSend=[...currentDraftImages];
     if(!textOverride&&userInput){ userInput.value=''; userInput.style.height='24px'; appendMessage('user',text,imagesToSend); clearImages(); }
+    
+    // Web Search Trigger
+    if (text.startsWith('/search ')) {
+        const query = text.replace('/search ', '').trim();
+        if (!textOverride) appendMessage('user', text, imagesToSend);
+        showTypingIndicator(`🔍 Searching the web for: ${query}...`);
+        try {
+            const searchRes = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`);
+            const searchHtml = await searchRes.text();
+            const doc = new DOMParser().parseFromString(searchHtml, 'text/html');
+            const results = Array.from(doc.querySelectorAll('.result__snippet')).slice(0, 3).map(el => el.textContent.trim()).join('\\n\\n');
+            text = `I searched the web for "${query}". Here are the top results:\\n\\n${results}\\n\\nBased on this, answer my query: ${query}`;
+        } catch(err) {
+            hideTypingIndicator(); appendMessage('ai', '⚠️ Web search failed.'); return;
+        }
+    }
+
     const indicatorText=currentMode==='deep'?"Thinking deeply...":currentMode==='image'?"Painting masterpiece...":"Kenowa is thinking...";
     showTypingIndicator(indicatorText); toggleSendButton(true);
     if(lastSuggestionContainer) {
@@ -747,13 +883,10 @@ async function handleSend(textOverride=null) {
     }
     abortController = new AbortController();
 
-    // FIX: Ensure currentChatId is initialized if this is the first message
-    if (!currentChatId) {
-        currentChatId = Date.now().toString();
-    }
-
-    // FIX: Lock the chatId for this request so tab switching doesn't affect where response appears
+    if (!currentChatId) currentChatId = Date.now().toString();
     const lockedChatId = currentChatId;
+    const sysPrompt = getSystemPrompt();
+
     try {
         const provider=localStorage.getItem('kenowa_provider')||'gemini';
         let model=localStorage.getItem('kenowa_model')||MODEL_QUICK;
@@ -769,7 +902,7 @@ async function handleSend(textOverride=null) {
             for(const imgDataUrl of imagesToSend){ const[header,base64Data]=imgDataUrl.split(','); const mimeMatch=header.match(/:(.*?);/); if(mimeMatch) parts.push({inline_data:{mime_type:mimeMatch[1],data:base64Data}}); }
             if(!parts.length) return;
             url=`${BASE_URL}${model}:generateContent?key=${apiKey}`;
-            body=JSON.stringify({contents:[{parts}]});
+            body=JSON.stringify({system_instruction:{parts:[{text:sysPrompt}]},contents:[{parts}]});
         } else if(provider==='openrouter'){
             apiKey=localStorage.getItem('kenowa_openrouter_key');
             if(!apiKey){ appendMessage('ai','⚙️ No OpenRouter API Key found. Open Settings to add one.'); return; }
@@ -777,14 +910,14 @@ async function handleSend(textOverride=null) {
             for(const img of imagesToSend) contentArr.push({type:'image_url',image_url:{url:img}});
             if(!contentArr.length) return;
             url='https://openrouter.ai/api/v1/chat/completions';
-            body=JSON.stringify({model,messages:[{role:'user',content:contentArr}]});
+            body=JSON.stringify({model,messages:[{role:'system',content:sysPrompt},{role:'user',content:contentArr}]});
             headers['Authorization']=`Bearer ${apiKey}`; headers['HTTP-Referer']='https://kenowa.extension'; headers['X-Title']='Kenowa Extension';
         } else if(provider==='ollama'){
             apiKey=localStorage.getItem('kenowa_ollama_key');
             if(!apiKey){ appendMessage('ai','⚙️ No Ollama API Key found. Open Settings to add one.'); return; }
             const ollamaImages=imagesToSend.map(img=>img.split(',')[1]).filter(Boolean);
             url='https://ollama.com/api/chat';
-            body=JSON.stringify({model,messages:[{role:'user',content:text||"Analyze this image",...(ollamaImages.length?{images:ollamaImages}:{})}],stream:false});
+            body=JSON.stringify({model,messages:[{role:'system',content:sysPrompt},{role:'user',content:text||"Analyze this image",...(ollamaImages.length?{images:ollamaImages}:{})}],stream:false});
             headers['Authorization']=`Bearer ${apiKey}`;
         }
 
@@ -1520,6 +1653,8 @@ async function executeExamClicker(tabId, answerText, shouldSubmit, isDelayEnable
                     if (finBtn) { finBtn.click(); if (statusEl) statusEl.textContent = 'Finishing…'; }
                 }
             }, 1500);
+            // If nothing else, wait a bit
+            setTimeout(() => { if (statusEl) statusEl.textContent = 'Waiting…'; }, 2000);
         }
     }).catch(() => {});
 }
@@ -1554,3 +1689,19 @@ async function clickNextOrFinish(tabId, shouldSubmit, hasFinishBtn, isDelayEnabl
         }
     }).catch(() => {});
 }
+
+// ── Context Menu Listener ──────────────────────────────────────
+chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === 'local' && changes.pendingContextAction && changes.pendingContextAction.newValue) {
+        const text = changes.pendingContextAction.newValue;
+        chrome.storage.local.remove('pendingContextAction');
+        setTimeout(() => handleSend(text), 500);
+    }
+});
+
+chrome.storage.local.get('pendingContextAction', (res) => {
+    if (res.pendingContextAction) {
+        chrome.storage.local.remove('pendingContextAction');
+        setTimeout(() => handleSend(res.pendingContextAction), 1000);
+    }
+});
