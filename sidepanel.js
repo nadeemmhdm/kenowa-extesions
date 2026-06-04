@@ -428,8 +428,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     exportChatBtn    = document.getElementById('export-chat-btn');
     historyList      = document.getElementById('history-list');
     typingIndicator  = document.getElementById('typing-indicator');
-    modeSelector     = document.getElementById('mode-selector');
-    micBtn           = document.getElementById('mic-btn');
     examDelayInput   = document.getElementById('settings-exam-delay-input');
 //     authModal        = document.getElementById('auth-modal');
     authFormContainer= document.getElementById('auth-form-container');
@@ -1253,12 +1251,6 @@ async function runExamModeStep() {
 
                 const qText = findQuestionText().substring(0, 2500);
                 const lc = text.toLowerCase();
-                // Completion detection
-                const isComplete = (
-                    (lc.includes('your score') || lc.includes('final score') || lc.includes('quiz complete') ||
-                     lc.includes('attempt complete') || lc.includes('results') || lc.includes('grade'))
-                    && (lc.includes('%') || lc.includes('out of') || lc.includes('correct') || lc.includes('marks'))
-                );
                 // Count live answerable inputs
                 const answerableInputs = document.querySelectorAll(
                     'input[type="radio"]:not([disabled]),input[type="checkbox"]:not([disabled])'
@@ -1269,17 +1261,12 @@ async function runExamModeStep() {
                     return (t.includes('finish') || t.includes('submit all')) &&
                            (t.includes('attempt') || t.includes('quiz') || t.includes('exam') || t.includes('test') || t.length < 25);
                 });
-                return { text, qText, isComplete, answerableInputs, hasFinishBtn };
+                return { text, qText, answerableInputs, hasFinishBtn };
             }
         });
 
         if (!extraction?.[0]?.result) throw new Error('Could not read exam page');
-        const { text: pageText, qText: extractedQuestionText, isComplete, answerableInputs, hasFinishBtn } = extraction[0].result;
-
-        if (isComplete) {
-            examAppendMessage('✅ Exam complete! Results detected.');
-            if (isExamMode) toggleExamMode(); return;
-        }
+        const { text: pageText, qText: extractedQuestionText, answerableInputs, hasFinishBtn } = extraction[0].result;
 
         const textSig = pageText.replace(/\d+/g, '').replace(/\s+/g, ' ').trim().substring(0, 2500);
         const isDelayEnabled = localStorage.getItem('kenowa_exam_delay') !== 'false';
