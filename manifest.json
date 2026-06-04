@@ -1,19 +1,22 @@
 {
     "manifest_version": 3,
     "name": "Kenowa AI Assistant",
-    "version": "1.0",
+    "version": "2.2",
     "description": "Your premium AI companion for the web.",
     "permissions": [
         "sidePanel",
         "storage",
         "activeTab",
         "scripting",
-        "tabs"
+        "tabs",
+        "alarms"
     ],
     "host_permissions": [
-        "https://bot-buddy-studio.pages.dev/*",
         "<all_urls>"
     ],
+    "content_security_policy": {
+        "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://generativelanguage.googleapis.com https://openrouter.ai https://ollama.com;"
+    },
     "background": {
         "service_worker": "background.js"
     },
@@ -26,8 +29,8 @@
     "commands": {
         "_execute_side_panel": {
             "suggested_key": {
-                "default": "Ctrl+Shift+3",
-                "mac": "Command+Shift+3"
+                "default": "Ctrl+Shift+K",
+                "mac": "Command+Shift+K"
             },
             "description": "Open the AI Side Panel"
         }

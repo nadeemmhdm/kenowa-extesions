@@ -4,160 +4,1268 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Get Gemini API Key - Kenowa AI</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <title>Kenowa AI — Help & Setup</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap"
+        rel="stylesheet">
     <style>
         :root {
-            --bg-color: #f7f7f8;
-            --text-color: #333;
-            --primary-color: #7b68ee;
-            /* Medium Slate Blue */
-            --border-color: #ddd;
-            --card-bg: #ffffff;
+            --bg: #09090e;
+            --surface: #111118;
+            --card: #16161f;
+            --elevated: #1d1d2a;
+            --border: rgba(255, 255, 255, 0.07);
+            --border-hi: rgba(255, 255, 255, 0.13);
+            --accent: #4f8ef7;
+            --accent2: #7c6af7;
+            --accent-g: rgba(79, 142, 247, 0.25);
+            --accent-s: rgba(79, 142, 247, 0.1);
+            --text: #eeeef8;
+            --sub: #7878a0;
+            --muted: #44445a;
+            --success: #3ecf8e;
+            --warn: #f5a623;
+            --danger: #f25c5c;
+            --r: 14px;
+            --r-lg: 22px;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
         }
 
         body {
-            font-family: 'Outfit', sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            line-height: 1.6;
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
         }
 
-        .container {
-            max-width: 800px;
-            margin: 40px auto;
-            padding: 20px;
+        /* ── Grain overlay ── */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 9999;
         }
 
-        .card {
-            background-color: var(--card-bg);
-            border-radius: 12px;
-            padding: 30px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        /* ── Hero mesh background ── */
+        .hero-bg {
+            position: fixed;
+            top: -200px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 700px;
+            height: 500px;
+            background: radial-gradient(ellipse at 30% 40%, rgba(79, 142, 247, 0.13) 0%, transparent 55%),
+                radial-gradient(ellipse at 70% 60%, rgba(124, 106, 247, 0.09) 0%, transparent 55%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ── Nav bar ── */
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 28px;
+            height: 56px;
+            background: rgba(9, 9, 14, 0.85);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        nav::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            width: 100%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent) 40%, var(--accent2) 60%, transparent);
+            opacity: 0.35;
+        }
+
+        .nav-brand {
+            font-family: 'Syne', sans-serif;
+            font-weight: 800;
+            font-size: 1.05rem;
+            letter-spacing: -0.01em;
+            background: linear-gradient(90deg, var(--text), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav-pills {
+            display: flex;
+            gap: 6px;
+        }
+
+        .nav-pill {
+            padding: 5px 14px;
+            border-radius: 40px;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--sub);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.82rem;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .nav-pill:hover,
+        .nav-pill.active {
+            background: var(--accent-s);
+            border-color: rgba(79, 142, 247, 0.35);
+            color: var(--accent);
+        }
+
+        /* ── Main layout ── */
+        main {
+            position: relative;
+            z-index: 1;
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 56px 24px 80px;
+        }
+
+        /* ── Page header ── */
+        .page-header {
+            text-align: center;
+            margin-bottom: 64px;
+            animation: fadeUp 0.7s 0.05s both;
+        }
+
+        .badge-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--accent-s);
+            border: 1px solid rgba(79, 142, 247, 0.3);
+            color: var(--accent);
+            padding: 5px 14px;
+            border-radius: 40px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+        }
+
+        .badge-pill svg {
+            animation: spin 8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         h1 {
-            color: var(--primary-color);
-            margin-top: 0;
-            text-align: center;
+            font-family: 'Syne', sans-serif;
+            font-size: 2.6rem;
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -0.03em;
+            margin-bottom: 16px;
         }
 
-        .step {
-            margin-bottom: 25px;
-            padding-bottom: 25px;
-            border-bottom: 1px solid var(--border-color);
+        h1 .grad {
+            background: linear-gradient(90deg, var(--accent), var(--accent2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
-        .step:last-child {
-            border-bottom: none;
+        .page-sub {
+            color: var(--sub);
+            font-size: 1rem;
+            line-height: 1.6;
+            max-width: 480px;
+            margin: 0 auto;
         }
 
-        .step-title {
-            font-weight: 600;
-            font-size: 1.2rem;
-            margin-bottom: 10px;
+        /* ── Section labels ── */
+        .section-label {
             display: flex;
             align-items: center;
+            gap: 10px;
+            font-family: 'Syne', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 24px;
+            color: var(--text);
+            animation: fadeUp 0.5s both;
         }
 
-        .step-number {
-            background-color: var(--primary-color);
-            color: white;
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
+        .section-label .icon-chip {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-right: 12px;
-            font-size: 0.9rem;
+            flex-shrink: 0;
         }
 
-        .step-content p {
-            margin: 0 0 10px 0;
-        }
-
-        .primary-btn {
-            display: inline-block;
-            background-color: var(--primary-color);
-            color: white;
-            padding: 10px 20px;
-            text-decoration: none;
+        .section-label .num {
+            width: 28px;
+            height: 28px;
             border-radius: 8px;
-            font-weight: 500;
+            background: var(--accent-s);
+            border: 1px solid rgba(79, 142, 247, 0.3);
+            color: var(--accent);
+            font-size: 0.78rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        section {
+            margin-bottom: 60px;
+        }
+
+        /* ══════════════════════════════════════════
+       API KEY STEPS
+    ══════════════════════════════════════════ */
+        .step-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .step-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--r-lg);
+            padding: 22px 22px 22px 20px;
+            display: flex;
+            gap: 18px;
+            align-items: flex-start;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
+            animation: fadeUp 0.5s both;
+        }
+
+        .step-card:hover {
+            border-color: var(--border-hi);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+        }
+
+        .step-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(79, 142, 247, 0.3), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .step-card:hover::before {
+            opacity: 1;
+        }
+
+        /* accent left bar */
+        .step-card::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 20%;
+            bottom: 20%;
+            width: 2px;
+            border-radius: 2px;
+            background: linear-gradient(180deg, var(--accent), var(--accent2));
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .step-card:hover::after {
+            opacity: 1;
+        }
+
+        .step-num {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: var(--accent-s);
+            border: 1px solid rgba(79, 142, 247, 0.25);
+            color: var(--accent);
+            font-family: 'Syne', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.25s;
+        }
+
+        .step-card:hover .step-num {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 0 18px var(--accent-g);
+        }
+
+        .step-body {
+            flex: 1;
+        }
+
+        .step-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 0.98rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+            color: var(--text);
+        }
+
+        .step-desc {
+            font-size: 0.88rem;
+            color: var(--sub);
+            line-height: 1.55;
+        }
+
+        .step-desc code {
+            background: rgba(79, 142, 247, 0.1);
+            border: 1px solid rgba(79, 142, 247, 0.18);
+            padding: 1px 6px;
+            border-radius: 5px;
+            font-family: 'Menlo', monospace;
+            font-size: 0.82em;
+            color: #a5bef7;
+        }
+
+        .step-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
             margin-top: 10px;
-            transition: opacity 0.2s;
+            padding: 7px 16px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            color: #fff;
+            border-radius: 8px;
+            font-size: 0.83rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+            box-shadow: 0 4px 16px var(--accent-g);
         }
 
-        .primary-btn:hover {
-            opacity: 0.9;
+        .step-link:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 24px var(--accent-g);
         }
 
-        code {
-            background-color: #eee;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: monospace;
+        /* Stagger delays */
+        .step-card:nth-child(1) {
+            animation-delay: 0.05s;
+        }
+
+        .step-card:nth-child(2) {
+            animation-delay: 0.12s;
+        }
+
+        .step-card:nth-child(3) {
+            animation-delay: 0.19s;
+        }
+
+        .step-card:nth-child(4) {
+            animation-delay: 0.26s;
+        }
+
+        /* ══════════════════════════════════════════
+       UPDATE EXTENSION — VISUAL TIMELINE
+    ══════════════════════════════════════════ */
+        .update-timeline {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        /* vertical connector line */
+        .update-timeline::before {
+            content: '';
+            position: absolute;
+            left: 28px;
+            top: 40px;
+            bottom: 40px;
+            width: 1px;
+            background: linear-gradient(180deg, var(--accent) 0%, var(--accent2) 60%, transparent 100%);
+            opacity: 0.3;
+            z-index: 0;
+        }
+
+        .update-step {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            padding: 14px 0;
+            position: relative;
+            z-index: 1;
+            animation: fadeUp 0.5s both;
+        }
+
+        .update-step:nth-child(1) {
+            animation-delay: 0.06s;
+        }
+
+        .update-step:nth-child(2) {
+            animation-delay: 0.13s;
+        }
+
+        .update-step:nth-child(3) {
+            animation-delay: 0.20s;
+        }
+
+        .update-step:nth-child(4) {
+            animation-delay: 0.27s;
+        }
+
+        .update-step:nth-child(5) {
+            animation-delay: 0.34s;
+        }
+
+        .update-step:nth-child(6) {
+            animation-delay: 0.41s;
+        }
+
+        .u-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: var(--r);
+            border: 1px solid var(--border-hi);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            position: relative;
+            transition: all 0.3s;
+        }
+
+        .u-icon svg {
+            transition: transform 0.3s;
+        }
+
+        .update-step:hover .u-icon {
+            border-color: rgba(79, 142, 247, 0.5);
+            box-shadow: 0 0 20px var(--accent-g);
+        }
+
+        .update-step:hover .u-icon svg {
+            transform: scale(1.12);
+        }
+
+        /* Color variants */
+        .u-blue {
+            background: rgba(79, 142, 247, 0.1);
+        }
+
+        .u-blue svg {
+            color: var(--accent);
+        }
+
+        .u-purple {
+            background: rgba(124, 106, 247, 0.1);
+        }
+
+        .u-purple svg {
+            color: var(--accent2);
+        }
+
+        .u-green {
+            background: rgba(62, 207, 142, 0.1);
+        }
+
+        .u-green svg {
+            color: var(--success);
+        }
+
+        .u-orange {
+            background: rgba(245, 166, 35, 0.1);
+        }
+
+        .u-orange svg {
+            color: var(--warn);
+        }
+
+        .u-red {
+            background: rgba(242, 92, 92, 0.1);
+        }
+
+        .u-red svg {
+            color: var(--danger);
+        }
+
+        .u-body {
+            flex: 1;
+            padding-top: 6px;
+        }
+
+        .u-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+            color: var(--text);
+        }
+
+        .u-desc {
+            font-size: 0.88rem;
+            color: var(--sub);
+            line-height: 1.55;
+        }
+
+        /* Visual illustration cards inside update steps */
+        .visual-card {
+            margin-top: 12px;
+            background: var(--elevated);
+            border: 1px solid var(--border);
+            border-radius: var(--r);
+            padding: 14px 16px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .visual-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent-g), transparent);
+        }
+
+        /* fake browser bar */
+        .fake-browser {
+            background: var(--card);
+            border: 1px solid var(--border-hi);
+            border-radius: var(--r);
+            overflow: hidden;
+            margin-top: 12px;
+        }
+
+        .fake-browser-bar {
+            background: var(--elevated);
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .dot-r {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--danger);
+        }
+
+        .dot-y {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--warn);
+        }
+
+        .dot-g {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+
+        .fake-url {
+            flex: 1;
+            background: var(--bg);
+            border-radius: 5px;
+            padding: 4px 10px;
+            font-size: 0.72rem;
+            font-family: 'Menlo', monospace;
+            color: var(--sub);
+        }
+
+        .fake-browser-body {
+            padding: 14px;
+        }
+
+        /* extension card in browser */
+        .ext-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .ext-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-family: 'Syne', sans-serif;
+            font-weight: 800;
+            font-size: 0.85rem;
+            flex-shrink: 0;
+        }
+
+        .ext-info {
+            flex: 1;
+        }
+
+        .ext-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .ext-version {
+            font-size: 0.72rem;
+            color: var(--sub);
+            margin-top: 1px;
+        }
+
+        .update-btn-fake {
+            padding: 6px 14px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border: none;
+            border-radius: 7px;
+            color: white;
+            font-size: 0.78rem;
+            font-weight: 700;
+            cursor: default;
+            box-shadow: 0 3px 12px var(--accent-g);
+            animation: updateGlow 2s ease-in-out infinite;
+        }
+
+        @keyframes updateGlow {
+
+            0%,
+            100% {
+                box-shadow: 0 3px 12px var(--accent-g);
+            }
+
+            50% {
+                box-shadow: 0 3px 22px rgba(79, 142, 247, 0.55);
+            }
+        }
+
+        /* folder illustration */
+        .folder-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            background: var(--bg);
+            border-radius: 9px;
+            border: 1px solid var(--border);
+        }
+
+        .folder-icon {
+            font-size: 1.5rem;
+        }
+
+        .folder-info {
+            flex: 1;
+        }
+
+        .folder-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .folder-meta {
+            font-size: 0.72rem;
+            color: var(--sub);
+            margin-top: 2px;
+        }
+
+        .folder-action {
+            padding: 4px 12px;
+            background: rgba(62, 207, 142, 0.12);
+            border: 1px solid rgba(62, 207, 142, 0.3);
+            border-radius: 6px;
+            color: var(--success);
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+
+        /* zip file illustration */
+        .zip-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            background: var(--bg);
+            border-radius: 9px;
+            border: 1px dashed rgba(245, 166, 35, 0.4);
+        }
+
+        /* tip box */
+        .tip-box {
+            margin-top: 10px;
+            padding: 10px 14px;
+            background: rgba(62, 207, 142, 0.07);
+            border: 1px solid rgba(62, 207, 142, 0.2);
+            border-radius: 10px;
+            font-size: 0.82rem;
+            color: var(--success);
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            line-height: 1.5;
+        }
+
+        .tip-box svg {
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        /* ── Done card ── */
+        .done-card {
+            background: linear-gradient(135deg, rgba(62, 207, 142, 0.1), rgba(79, 142, 247, 0.08));
+            border: 1px solid rgba(62, 207, 142, 0.25);
+            border-radius: var(--r-lg);
+            padding: 32px 28px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            animation: fadeUp 0.6s 0.5s both;
+        }
+
+        .done-card::before {
+            content: '';
+            position: absolute;
+            top: -40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 100px;
+            background: radial-gradient(ellipse, rgba(62, 207, 142, 0.2), transparent 70%);
+        }
+
+        .done-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: rgba(62, 207, 142, 0.15);
+            border: 1px solid rgba(62, 207, 142, 0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+            animation: checkBounce 0.6s 0.8s var(--spring, cubic-bezier(0.34, 1.56, 0.64, 1)) both;
+        }
+
+        @keyframes checkBounce {
+            from {
+                transform: scale(0);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .done-card h3 {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .done-card p {
+            color: var(--sub);
+            font-size: 0.9rem;
+            line-height: 1.55;
+        }
+
+        /* ── Divider ── */
+        .divider {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 60px 0;
+        }
+
+        /* ── Animations ── */
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(18px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--elevated);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 520px) {
+            h1 {
+                font-size: 1.9rem;
+            }
+
+            .update-timeline::before {
+                left: 24px;
+            }
+
+            .u-icon {
+                width: 48px;
+                height: 48px;
+            }
         }
     </style>
 </head>
 
 <body>
-    <div class="container">
-        <div class="card">
-            <h1>How to Get Your Gemini API Key</h1>
-            <p style="text-align: center; margin-bottom: 30px; color: #666;">
-                Follow these simple steps to activate Kenowa AI with the free Gemini API.
-            </p>
 
-            <div class="step">
-                <div class="step-title">
-                    <div class="step-number">1</div>
-                    <span>Go to Google AI Studio</span>
-                </div>
-                <div class="step-content">
-                    <p>Click the button below to visit Google AI Studio. You may need to sign in with your Google
-                        account.</p>
-                    <a href="https://aistudio.google.com/app/apikey" target="_blank" class="primary-btn">Open Google AI
-                        Studio</a>
-                </div>
-            </div>
+    <div class="hero-bg"></div>
 
-            <div class="step">
-                <div class="step-title">
-                    <div class="step-number">2</div>
-                    <span>Create API Key</span>
-                </div>
-                <div class="step-content">
-                    <p>Once logged in, click on the blue <strong>"Create API key"</strong> button.</p>
-                    <p>If prompted, select "Create API key in new project" or select an existing project.</p>
-                </div>
-            </div>
-
-            <div class="step">
-                <div class="step-title">
-                    <div class="step-number">3</div>
-                    <span>Copy Your Key</span>
-                </div>
-                <div class="step-content">
-                    <p>Your API key will be generated. Click the <strong>Copy</strong> icon next to the key.</p>
-                    <p><em>Note: It usually starts with <code>AIza...</code></em></p>
-                </div>
-            </div>
-
-            <div class="step">
-                <div class="step-title">
-                    <div class="step-number">4</div>
-                    <span>Paste in Kenowa AI</span>
-                </div>
-                <div class="step-content">
-                    <p>Go back to the Kenowa AI extension and paste the key into the API Key field.</p>
-                </div>
-            </div>
+    <!-- Nav -->
+    <nav>
+        <span class="nav-brand">Kenowa AI</span>
+        <div class="nav-pills">
+            <a href="#api-key" class="nav-pill">API Key</a>
+            <a href="#update" class="nav-pill">Update Extension</a>
         </div>
-    </div>
+    </nav>
+
+    <main>
+
+        <!-- Page Header -->
+        <div class="page-header">
+            <div class="badge-pill">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 6v6l4 2" />
+                </svg>
+                Help &amp; Setup Guide
+            </div>
+            <h1>Everything you need<br>to get <span class="grad">Kenowa running</span></h1>
+            <p class="page-sub">Follow the steps below to activate your AI key or update to the latest version of the
+                extension.</p>
+        </div>
+
+        <!-- ── SECTION 1: API KEY ── -->
+        <section id="api-key">
+            <div class="section-label" style="animation-delay:0.1s">
+                <div class="icon-chip u-blue"
+                    style="background:rgba(79,142,247,0.12);border:1px solid rgba(79,142,247,0.25);border-radius:10px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4f8ef7" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path
+                            d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zM12 12l.13-.13a5.5 5.5 0 1 1 7.78 7.78l-.13.13L12 12z" />
+                    </svg>
+                </div>
+                Get Your Gemini API Key
+            </div>
+
+            <div class="step-grid">
+
+                <div class="step-card">
+                    <div class="step-num">1</div>
+                    <div class="step-body">
+                        <div class="step-title">Open Google AI Studio</div>
+                        <div class="step-desc">Click the button below to visit Google AI Studio. Sign in with your
+                            Google account if prompted.</div>
+                        <a href="https://aistudio.google.com/app/apikey" target="_blank" class="step-link">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2.5">
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                <polyline points="15 3 21 3 21 9" />
+                                <line x1="10" y1="14" x2="21" y2="3" />
+                            </svg>
+                            Open Google AI Studio
+                        </a>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-num">2</div>
+                    <div class="step-body">
+                        <div class="step-title">Click "Create API Key"</div>
+                        <div class="step-desc">Once logged in, click the blue <strong style="color:var(--text)">Create
+                                API key</strong> button. Select "Create API key in new project" or pick an existing
+                            project.</div>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-num">3</div>
+                    <div class="step-body">
+                        <div class="step-title">Copy Your Key</div>
+                        <div class="step-desc">Your API key will appear — click the copy icon next to it. It usually
+                            starts with <code>AIza...</code></div>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-num">4</div>
+                    <div class="step-body">
+                        <div class="step-title">Paste Into Kenowa AI</div>
+                        <div class="step-desc">Open the Kenowa AI extension → Settings → paste your key into the <strong
+                                style="color:var(--text)">Gemini API Key</strong> field → Save Changes.</div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <hr class="divider">
+
+        <!-- ── SECTION 2: UPDATE EXTENSION ── -->
+        <section id="update">
+            <div class="section-label" style="animation-delay:0.1s">
+                <div
+                    style="background:rgba(124,106,247,0.12);border:1px solid rgba(124,106,247,0.25);border-radius:10px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7c6af7" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="23 4 23 10 17 10" />
+                        <path d="M20.49 15a9 9 0 1 1-.27-6.53" />
+                    </svg>
+                </div>
+                How to Update the Extension
+            </div>
+
+            <div class="update-timeline">
+
+                <!-- Step 1 -->
+                <div class="update-step">
+                    <div class="u-icon u-blue">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="7 10 12 15 17 10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                    </div>
+                    <div class="u-body">
+                        <div class="u-title">Download the New ZIP File</div>
+                        <div class="u-desc">Get the latest version ZIP from the download link provided by the admin or
+                            the Kenowa website.</div>
+                        <div class="visual-card">
+                            <div class="zip-row">
+                                <span style="font-size:1.6rem">📦</span>
+                                <div style="flex:1">
+                                    <div style="font-size:0.85rem;font-weight:600;color:var(--text)">kenowa-ai-v2.0.zip
+                                    </div>
+                                    <div style="font-size:0.72rem;color:var(--sub);margin-top:2px">Latest release —
+                                        Chrome Extension</div>
+                                </div>
+                                <div
+                                    style="padding:5px 12px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:7px;color:white;font-size:0.75rem;font-weight:700;">
+                                    Download
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="update-step">
+                    <div class="u-icon u-orange">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                        </svg>
+                    </div>
+                    <div class="u-body">
+                        <div class="u-title">Extract the ZIP File</div>
+                        <div class="u-desc">Right-click the downloaded ZIP → <strong style="color:var(--text)">Extract
+                                All</strong> (Windows) or double-click (Mac). You'll get a folder named something like
+                            <code>kenowa-ai-v2.0</code>.</div>
+                        <div class="visual-card">
+                            <div
+                                style="font-size:0.78rem;color:var(--sub);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">
+                                Your Downloads folder</div>
+                            <div style="display:flex;flex-direction:column;gap:6px;">
+                                <div class="zip-row">
+                                    <span style="font-size:1.3rem">🗜️</span>
+                                    <div style="flex:1">
+                                        <div style="font-size:0.82rem;font-weight:500;color:var(--sub);">
+                                            kenowa-ai-v2.0.zip</div>
+                                    </div>
+                                    <span style="font-size:0.72rem;color:var(--warn);">Right-click → Extract</span>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:6px;padding:0 4px;color:var(--sub);">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <line x1="12" y1="5" x2="12" y2="19" />
+                                        <polyline points="19 12 12 19 5 12" />
+                                    </svg>
+                                    <span style="font-size:0.75rem">After extraction</span>
+                                </div>
+                                <div class="folder-row">
+                                    <span class="folder-icon">📁</span>
+                                    <div class="folder-info">
+                                        <div class="folder-name">kenowa-ai-v2.0</div>
+                                        <div class="folder-meta">manifest.json · sidepanel.html · background.js …</div>
+                                    </div>
+                                    <div class="folder-action">✓ Ready</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="update-step">
+                    <div class="u-icon u-red">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                    </div>
+                    <div class="u-body">
+                        <div class="u-title">Delete the Old Extension Folder</div>
+                        <div class="u-desc">Find where you originally extracted the old Kenowa folder on your computer.
+                            <strong style="color:var(--text)">Select it and delete it</strong> — or you can replace it
+                            by extracting the new ZIP into the same location.</div>
+                        <div class="tip-box">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2.5" stroke-linecap="round">
+                                <path d="M9 12l2 2 4-4" />
+                                <circle cx="12" cy="12" r="10" />
+                            </svg>
+                            <span><strong>Tip:</strong> If you extract the new ZIP into the exact same folder path,
+                                Chrome will automatically use the updated files.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 4 -->
+                <div class="update-step">
+                    <div class="u-icon u-purple">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="2" y1="12" x2="22" y2="12" />
+                            <path
+                                d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                        </svg>
+                    </div>
+                    <div class="u-body">
+                        <div class="u-title">Open Chrome Extensions Page</div>
+                        <div class="u-desc">In your browser address bar, type <code>chrome://extensions</code> and press
+                            Enter. Or go to <strong style="color:var(--text)">Menu → More Tools → Extensions</strong>.
+                        </div>
+                        <div class="fake-browser">
+                            <div class="fake-browser-bar">
+                                <div class="dot-r"></div>
+                                <div class="dot-y"></div>
+                                <div class="dot-g"></div>
+                                <div class="fake-url">chrome://extensions</div>
+                            </div>
+                            <div class="fake-browser-body">
+                                <div
+                                    style="font-size:0.78rem;color:var(--sub);margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <rect x="3" y="3" width="7" height="7" />
+                                        <rect x="14" y="3" width="7" height="7" />
+                                        <rect x="3" y="14" width="7" height="7" />
+                                        <rect x="14" y="14" width="7" height="7" />
+                                    </svg>
+                                    Chrome Extensions
+                                </div>
+                                <div class="ext-card">
+                                    <div class="ext-icon">K</div>
+                                    <div class="ext-info">
+                                        <div class="ext-name">Kenowa AI Assistant</div>
+                                        <div class="ext-version">v1.0 → update available</div>
+                                    </div>
+                                    <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;">
+                                        <div
+                                            style="width:10px;height:10px;border-radius:50%;background:var(--warn);box-shadow:0 0 8px rgba(245,166,35,0.6);">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 5 -->
+                <div class="update-step">
+                    <div class="u-icon u-orange">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 20h9" />
+                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                        </svg>
+                    </div>
+                    <div class="u-body">
+                        <div class="u-title">Enable Developer Mode</div>
+                        <div class="u-desc">In the top-right corner of the Extensions page, toggle on <strong
+                                style="color:var(--text)">Developer mode</strong>. This reveals the update controls.
+                        </div>
+                        <div class="visual-card">
+                            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;">
+                                <span style="font-size:0.85rem;color:var(--text);font-weight:500;">Developer mode</span>
+                                <div
+                                    style="position:relative;width:44px;height:24px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:12px;box-shadow:0 0 12px var(--accent-g);cursor:pointer;">
+                                    <div
+                                        style="position:absolute;right:3px;top:3px;width:18px;height:18px;background:white;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.3);">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 6 -->
+                <div class="update-step">
+                    <div class="u-icon u-green">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="23 4 23 10 17 10" />
+                            <path d="M20.49 15a9 9 0 1 1-.27-6.53" />
+                        </svg>
+                    </div>
+                    <div class="u-body">
+                        <div class="u-title">Click "Update" Button</div>
+                        <div class="u-desc">With Developer mode on, an <strong style="color:var(--text)">Update</strong>
+                            button appears at the top. Click it — Chrome will reload all extensions including Kenowa
+                            with the latest files.</div>
+                        <div class="fake-browser">
+                            <div class="fake-browser-bar">
+                                <div class="dot-r"></div>
+                                <div class="dot-y"></div>
+                                <div class="dot-g"></div>
+                                <div class="fake-url">chrome://extensions</div>
+                            </div>
+                            <div class="fake-browser-body">
+                                <div
+                                    style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                                    <span style="font-size:0.78rem;color:var(--sub);">3 extensions loaded</span>
+                                    <div class="update-btn-fake">↺ Update</div>
+                                </div>
+                                <div class="ext-card">
+                                    <div class="ext-icon">K</div>
+                                    <div class="ext-info">
+                                        <div class="ext-name">Kenowa AI Assistant</div>
+                                        <div class="ext-version" style="color:var(--success);">✓ v2.0 — Up to date</div>
+                                    </div>
+                                    <div
+                                        style="width:10px;height:10px;border-radius:50%;background:var(--success);box-shadow:0 0 8px rgba(62,207,142,0.6);">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tip-box" style="margin-top:12px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2.5" stroke-linecap="round">
+                                <path d="M9 12l2 2 4-4" />
+                                <circle cx="12" cy="12" r="10" />
+                            </svg>
+                            <span>After clicking Update, close and reopen the Kenowa side panel to see the new
+                                version.</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- end timeline -->
+
+            <!-- Done card -->
+            <div class="done-card" style="margin-top:36px;">
+                <div class="done-icon">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#3ecf8e" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                </div>
+                <h3 style="color:var(--success);">You're all updated! 🎉</h3>
+                <p style="margin-top:8px;">Kenowa AI is now running the latest version. Enjoy the new features and
+                    improvements.</p>
+            </div>
+
+        </section>
+
+    </main>
+
+    <script>
+        // Intersection observer for scroll-triggered animations
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(e => {
+                if (e.isIntersecting) {
+                    e.target.style.animationPlayState = 'running';
+                    observer.unobserve(e.target);
+                }
+            });
+        }, { threshold: 0.12 });
+
+        document.querySelectorAll('.step-card, .update-step, .done-card').forEach(el => {
+            el.style.animationPlayState = 'paused';
+            observer.observe(el);
+        });
+
+        // Nav pill active state on scroll
+        const sections = document.querySelectorAll('section[id]');
+        const pills = document.querySelectorAll('.nav-pill');
+
+        window.addEventListener('scroll', () => {
+            let current = '';
+            sections.forEach(s => {
+                if (window.scrollY >= s.offsetTop - 100) current = s.id;
+            });
+            pills.forEach(p => {
+                p.classList.toggle('active', p.getAttribute('href') === '#' + current);
+            });
+        });
+    </script>
+
 </body>
 
 </html>

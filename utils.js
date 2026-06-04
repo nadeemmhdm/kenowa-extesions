@@ -1,97 +1,127 @@
+// ============================================================
+// KENOWA AI — utils.js v2.2 (Secured)
+// ============================================================
+
+// SECURITY: Disable console logging in production to prevent leakage of data/keys
+if (typeof process === 'undefined' || process.env?.NODE_ENV !== 'development') {
+    const noop = () => {};
+    console.log = noop;
+    console.info = noop;
+    console.warn = noop;
+    // We retain console.error for critical debugs if absolutely necessary
+}
+
+// SECURITY: HTML entity escape — prevents XSS when inserting
+// user-generated text into innerHTML contexts
+function escapeHtml(str) {
+    if (typeof str !== 'string') return '';
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 function parseMarkdown(text) {
     if (!text) return '';
 
     // 1. Code Blocks (preserve content)
     const codeBlocks = [];
     text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-        const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
-        codeBlocks.push({ lang, code });
+        const placeholder = `@@CODEBLOCK${codeBlocks.length}@@`;
+        codeBlocks.push({ lang: lang || 'text', code });
         return placeholder;
     });
 
     // 2. Inline Code (preserve content)
     const inlineCodeBlocks = [];
     text = text.replace(/`([^`]+)`/g, (match, code) => {
-        const placeholder = `__INLINE_CODE_${inlineCodeBlocks.length}__`;
+        const placeholder = `@@INLINECODE${inlineCodeBlocks.length}@@`;
         inlineCodeBlocks.push(code);
         return placeholder;
     });
 
-    // 3. Block Elements processing
-
-    // Headers
+    // 3. Headers
     text = text.replace(/^### (.*)$/gm, '<h3>$1</h3>');
     text = text.replace(/^## (.*)$/gm, '<h2>$1</h2>');
     text = text.replace(/^# (.*)$/gm, '<h1>$1</h1>');
 
-    // Horizontal Rule
+    // 4. Horizontal Rule
     text = text.replace(/^---+$/gm, '<hr>');
 
-    // Lists (Unordered) - Support both - and *
+    // 5. Unordered Lists
     text = text.replace(/^\s*[\-\*]\s+(.*)$/gm, '<ul><li>$1</li></ul>');
-    text = text.replace(/<\/ul>\s*<ul>/g, ''); // Merge adjacent lists
+    text = text.replace(/<\/ul>\s*<ul>/g, '');
 
-    // Lists (Ordered)
+    // 6. Ordered Lists
     text = text.replace(/^\s*\d+\.\s+(.*)$/gm, '<ol><li>$1</li></ol>');
-    text = text.replace(/<\/ol>\s*<ol>/g, ''); // Merge adjacent lists
+    text = text.replace(/<\/ol>\s*<ol>/g, '');
 
-    // 4. Inline Formatting
-
-    // Bold (**text** or __text__)
+    // 7. Bold / Italic
     text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
     text = text.replace(/__(.*?)__/g, '<strong>$1</strong>');
-
-    // Italic (*text* or _text_)
-    // Use slightly strict regex to avoid matching * inside words accidentally, 
-    // though global * replacement is common in simple parsers.
     text = text.replace(/\*([^\s*][^*]*?)\*/g, '<em>$1</em>');
     text = text.replace(/_([^\s_][^_]*?)_/g, '<em>$1</em>');
 
-    // 5. Restore Code
-    // Restore inline first
+    // 8. Restore Inline Code
     inlineCodeBlocks.forEach((code, index) => {
-        // Escape HTML in code
-        const escaped = code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        text = text.replace(`__INLINE_CODE_${index}__`, `<code class="inline-code">${escaped}</code>`);
+        const escaped = escapeHtml(code);
+        text = text.replace(`@@INLINECODE${index}@@`, `<code class="inline-code">${escaped}</code>`);
     });
 
-    // Restore blocks
+    // 9. Restore Code Blocks
     codeBlocks.forEach((block, index) => {
-        const language = block.lang || 'text';
-        const escapedCode = block.code.replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
+        const language = block.lang;
+        
+        // Basic Syntax Highlighting Logic
+        let code = block.code;
+        const escapedCode = escapeHtml(code);
+        
+        // Apply basic regex-based highlighting to the escaped code
+        let highlighted = escapedCode;
+        
+        // Keywords (simple set)
+        highlighted = highlighted.replace(/\b(const|let|var|function|return|if|else|for|while|import|export|class|async|await|try|catch|new|this|throw|null|undefined|true|false)\b/g, '<span class="code-kw">$1</span>');
+        
+        // Strings (double and single quotes)
+        highlighted = highlighted.replace(/(&quot;.*?&quot;|&#039;.*?&#039;)/g, '<span class="code-str">$1</span>');
+        
+        // Comments (single line)
+        highlighted = highlighted.replace(/(\/\/.*?)<br>/g, '<span class="code-comment">$1</span><br>');
+        
+        // Numbers
+        highlighted = highlighted.replace(/\b(\d+)\b/g, '<span class="code-num">$1</span>');
+
+        // SECURITY: data-code stores encoded URI — safe for attribute
+        const encodedForAttr = encodeURIComponent(block.code);
 
         const html = `
             <div class="code-block-wrapper">
                 <div class="code-header">
-                    <span class="code-lang">${language}</span>
-                    <button class="copy-code-btn" data-code="${encodeURIComponent(block.code)}">
+                    <span class="code-lang">${escapeHtml(language)}</span>
+                    <button class="copy-code-btn" data-code="${encodedForAttr}">
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                         Copy
                     </button>
                 </div>
-                <pre><code class="language-${language}">${escapedCode}</code></pre>
+                <pre><code class="language-${escapeHtml(language)}">${highlighted}</code></pre>
             </div>
         `.trim();
-        text = text.replace(`__CODE_BLOCK_${index}__`, html);
+        text = text.replace(`@@CODEBLOCK${index}@@`, html);
     });
 
-    // 6. Links (Markdown style [text](url))
-    text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+    // 10. Links — SECURITY: only allow http/https URLs
+    text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, (_, label, url) => {
+        return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
+    });
 
-    // 7. Paragraph Handling (Newlines)
-    // Convert remaining newlines to <br> but avoid adding them inside list structures or around headers
-    // Clean up <br> before/after block tags
+    // 11. Newlines → <br>
     text = text.replace(/\n/g, '<br>');
-
-    // Remove <br> immediately following block closing tags or preceding block opening tags to avoid huge gaps
     text = text.replace(/(<\/h[1-6]>|<\/ul>|<\/ol>|<\/li>|<\/p>)\s*<br>/g, '$1');
     text = text.replace(/<br>\s*(<h[1-6]>|<ul>|<ol>|<li>|<p>)/g, '$1');
 
-    // Blockquotes
+    // 12. Blockquotes
     text = text.replace(/^> (.*)$/gm, '<blockquote>$1</blockquote>');
 
     return text;
