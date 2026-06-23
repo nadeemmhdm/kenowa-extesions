@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Kenowa AI Assistant",
-    "version": "2.2",
+    "version": "2.3",
     "description": "Your premium AI companion for the web.",
     "permissions": [
         "sidePanel",

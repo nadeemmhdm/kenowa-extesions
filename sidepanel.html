@@ -21,10 +21,16 @@
     <div id="history-sidebar" class="sidebar">
       <div class="sidebar-header">
         <h2 class="sidebar-title">History</h2>
-        <button id="close-sidebar-btn" class="icon-btn-small" title="Close">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-        </button>
+        <div class="sidebar-header-actions">
+          <button id="add-folder-btn" class="icon-btn-small" title="New Folder">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          </button>
+          <button id="close-sidebar-btn" class="icon-btn-small" title="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
       </div>
+      <div id="folder-list" class="folder-list"></div>
       <div id="history-list" class="history-list"></div>
       <div class="sidebar-footer">
         <div class="footer-grid">
@@ -35,6 +41,10 @@
           <button id="lesson-retry-btn" class="footer-btn" title="Setup Guide">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
             Guide
+          </button>
+          <button id="bug-report-btn" class="footer-btn" title="Report a Bug">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a8 8 0 0 0-8 8v1a5 5 0 0 0 5 5h6a5 5 0 0 0 5-5v-1a8 8 0 0 0-8-8z"/><path d="M8 11h8"/><path d="M10 15v4a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2v-4"/><line x1="12" y1="2" x2="12" y2="7"/></svg>
+            Bug Report
           </button>
         </div>
       </div>
@@ -74,6 +84,30 @@
         </div>
         <div id="messages-list" class="messages-list"></div>
         <div id="typing-indicator" class="typing-indicator hidden"></div>
+      </div>
+
+      <!-- Quick Actions Bar -->
+      <div id="quick-actions-bar" class="quick-actions-bar hidden">
+        <button class="quick-action-btn" data-action="translate" title="Translate">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          Translate
+        </button>
+        <button class="quick-action-btn" data-action="summarize" title="Summarize">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          Summarize
+        </button>
+        <button class="quick-action-btn" data-action="rewrite" title="Rewrite">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Rewrite
+        </button>
+        <button class="quick-action-btn" data-action="code" title="Code">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          Code
+        </button>
+        <button id="compare-btn" class="quick-action-btn compare-btn" title="Compare Models">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          Compare
+        </button>
       </div>
 
       <!-- Input Area -->
@@ -265,6 +299,67 @@
       <div class="modal-footer">
         <button id="close-notification-btn" class="primary-btn w-100">Got it!</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Comparison Results Panel -->
+  <div id="comparison-panel" class="comparison-panel hidden">
+    <div class="comparison-panel-header">
+      <h3>Model Comparison</h3>
+      <button id="close-comparison-btn" class="icon-btn-small" title="Close">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div id="comparison-content" class="comparison-content"></div>
+  </div>
+
+  <!-- Folder Modal -->
+  <div id="folder-modal" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width:340px;text-align:left;">
+      <div class="modal-header">
+        <h2 id="folder-modal-title">New Folder</h2>
+      </div>
+      <div class="modal-body">
+        <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Folder Name</label>
+        <input type="text" id="folder-name-input" placeholder="Enter folder name" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:14px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
+        <div class="folder-color-picker">
+          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:8px;">Color</label>
+          <div id="folder-colors" class="folder-colors">
+            <button class="folder-color-swatch selected" data-color="#4f8ef7" style="background:#4f8ef7"></button>
+            <button class="folder-color-swatch" data-color="#3ecf8e" style="background:#3ecf8e"></button>
+            <button class="folder-color-swatch" data-color="#f5a623" style="background:#f5a623"></button>
+            <button class="folder-color-swatch" data-color="#f25c5c" style="background:#f25c5c"></button>
+            <button class="folder-color-swatch" data-color="#a78bfa" style="background:#a78bfa"></button>
+            <button class="folder-color-swatch" data-color="#f472b6" style="background:#f472b6"></button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display:flex;gap:8px;">
+        <button id="folder-cancel-btn" class="secondary-btn" style="flex:1;">Cancel</button>
+        <button id="folder-save-btn" class="primary-btn" style="flex:1;">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Session Chat Indicator -->
+  <div id="session-indicator" class="session-indicator hidden">
+    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    <span>Session chat — not saved</span>
+  </div>
+
+  <!-- Access Code Modal -->
+  <div id="access-modal" class="access-modal">
+    <div class="access-modal-content">
+      <div class="access-lock-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+      </div>
+      <h2 class="access-modal-title">Access Required</h2>
+      <p class="access-modal-sub">This extension is restricted. Please enter the access code to continue.</p>
+      <div class="access-input-group">
+        <input type="password" id="access-code-input" placeholder="Enter access code" autocomplete="off">
+      </div>
+      <button id="access-submit-btn" class="access-submit-btn">Submit</button>
+      <p id="access-error" class="access-error hidden">Invalid code. Contact admin.</p>
     </div>
   </div>
 

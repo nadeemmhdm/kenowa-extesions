@@ -7,7 +7,7 @@ const BASE_URL  = "https://generativelanguage.googleapis.com/v1beta/models/";
 const MODEL_QUICK = "gemini-2.0-flash";
 const MODEL_DEEP  = "gemini-1.5-pro";
 const MODEL_IMAGE = "gemini-2.0-flash-exp";
-const APP_VERSION = "2.2.0";
+const APP_VERSION = "2.3.0";
 
 // ── DOM refs ──────────────────────────────────────────────────
 let chatContainer, messagesList, userInput, sendBtn, attachBtn, sqBtn, examModeBtn, fileInput, imagePreviewContainer;
@@ -406,7 +406,50 @@ function startIntervals() {
 }
 
 // ── DOMContentLoaded ───────────────────────────────────────────
+// ── Access Code Control ──────────────────────────────────────
+function getExpectedAccessCode() {
+    const d = new Date();
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return 'Nadeem' + dd + mm + yyyy;
+}
+
+function checkAccess() {
+    const accessModal = document.getElementById('access-modal');
+    const accessInput = document.getElementById('access-code-input');
+    const accessError = document.getElementById('access-error');
+    const submitBtn = document.getElementById('access-submit-btn');
+
+    const grantedUntil = localStorage.getItem('kenowa_access_granted_until');
+    if (grantedUntil && Date.now() < parseInt(grantedUntil)) {
+        accessModal.style.display = 'none';
+        return true;
+    }
+
+    submitBtn.onclick = function() {
+        const code = accessInput.value.trim();
+        if (code === getExpectedAccessCode()) {
+            localStorage.setItem('kenowa_access_granted_until', (Date.now() + 30 * 24 * 60 * 60 * 1000).toString());
+            location.reload();
+        } else {
+            accessError.classList.remove('hidden');
+            accessInput.value = '';
+            accessInput.focus();
+        }
+    };
+
+    accessInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') submitBtn.click();
+    });
+
+    accessInput.focus();
+    return false;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+    if (!checkAccess()) return;
+
     loadCurrentMode();
     loadBlockedWebsites();
 
@@ -683,7 +726,6 @@ function copyToClipboard(text,btnEl) {
 
 // ── Message Rendering ──────────────────────────────────────────
 function appendMessage(role,content,images=[],animate=false,isReload=false,targetChatId=null) {
-    // Use targetChatId if provided, otherwise use currentChatId
     const chatId = targetChatId || currentChatId;
     if(welcomeScreen) welcomeScreen.classList.add('hidden');
     const msgDiv=document.createElement('div'); msgDiv.className=`message ${role}`;
@@ -717,6 +759,32 @@ function appendMessage(role,content,images=[],animate=false,isReload=false,targe
         if(chatContainer) chatContainer.scrollTop=chatContainer.scrollHeight;
         if(!animate&&!isReload) saveToHistory(role,content,images,chatId);
     }
+}
+
+// ── Streaming message (token-by-token rendering) ──────────
+function appendMessageStream(chatId) {
+    if(welcomeScreen) welcomeScreen.classList.add('hidden');
+    const msgDiv=document.createElement('div'); msgDiv.className='message ai';
+    const textDiv=document.createElement('div'); textDiv.className='streaming-text';
+    msgDiv.appendChild(textDiv);
+    if(messagesList) messagesList.appendChild(msgDiv);
+    if(chatContainer) chatContainer.scrollTop=chatContainer.scrollHeight;
+    let full='';
+    return {
+        update(chunk){
+            full+=chunk;
+            textDiv.innerHTML=escapeHtml(full).replace(/\n/g,'<br>')+'<span class="streaming-cursor">|</span>';
+            if(chatContainer) chatContainer.scrollTop=chatContainer.scrollHeight;
+        },
+        finalize(){
+            const html=typeof parseMarkdown==='function'?parseMarkdown(full):escapeHtml(full);
+            textDiv.innerHTML=linkify(html);
+            addActions(msgDiv,full);
+            if(chatId) saveToHistory('ai',full,[],chatId);
+            return full;
+        },
+        getContent(){return full;}
+    };
 }
 
 function addActions(parentDiv,content) {
@@ -901,8 +969,38 @@ async function handleSend(textOverride=null) {
             const parts=[]; if(text) parts.push({text});
             for(const imgDataUrl of imagesToSend){ const[header,base64Data]=imgDataUrl.split(','); const mimeMatch=header.match(/:(.*?);/); if(mimeMatch) parts.push({inline_data:{mime_type:mimeMatch[1],data:base64Data}}); }
             if(!parts.length) return;
-            url=`${BASE_URL}${model}:generateContent?key=${apiKey}`;
-            body=JSON.stringify({system_instruction:{parts:[{text:sysPrompt}]},contents:[{parts}]});
+            if(currentMode==='image'){
+                url=`${BASE_URL}${model}:generateContent?key=${apiKey}`;
+                body=JSON.stringify({system_instruction:{parts:[{text:sysPrompt}]},contents:[{parts}]});
+                const response=await fetch(url,{method:'POST',headers,body,signal:abortController.signal});
+                if(!response.ok){ let e=`API error ${response.status}`; try{const ed=await response.json();e=ed.error?.message||JSON.stringify(ed);}catch(_){} throw new Error(e); }
+                const data=await response.json();
+                let aiMsg=''; let imgResps=[];
+                const parts=data.candidates?.[0]?.content?.parts||[];
+                for(const p of parts){ if(p.text) aiMsg+=p.text; else if(p.inline_data) imgResps.push(`data:${p.inline_data.mime_type||'image/png'};base64,${p.inline_data.data}`); }
+                hideTypingIndicator();
+                if(imgResps.length>0){ logImageGenSuccess(); appendMessage('ai',aiMsg||"Here's what I generated:",imgResps,false,false,lockedChatId); }
+                else { appendMessage('ai',aiMsg||"No content generated.",[],true,false,lockedChatId); }
+            } else {
+                url=`${BASE_URL}${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
+                body=JSON.stringify({system_instruction:{parts:[{text:sysPrompt}]},contents:[{parts}]});
+                const sm=appendMessageStream(lockedChatId); hideTypingIndicator();
+                const response=await fetch(url,{method:'POST',headers,body,signal:abortController.signal});
+                if(!response.ok){ let e=`API error ${response.status}`; try{const ed=await response.json();e=ed.error?.message||JSON.stringify(ed);}catch(_){} throw new Error(e); }
+                const reader=response.body.getReader(); const dec=new TextDecoder(); let buf='';
+                while(true){
+                    const {done,value}=await reader.read(); if(done) break;
+                    buf+=dec.decode(value,{stream:true});
+                    const lines=buf.split('\n'); buf=lines.pop()||'';
+                    for(const line of lines){
+                        if(!line.startsWith('data: ')) continue;
+                        const s=line.slice(6).trim(); if(!s||s==='[DONE]') continue;
+                        try{ const d=JSON.parse(s); const tokens=d.candidates?.[0]?.content?.parts?.map(p=>p.text).filter(Boolean)||[]; for(const t of tokens) sm.update(t); }catch(_){}
+                    }
+                }
+                const aiMessage=sm.finalize();
+                if (!isExamMode && !isSQMode) setTimeout(() => getAISuggestions(text, aiMessage), 500);
+            }
         } else if(provider==='openrouter'){
             apiKey=localStorage.getItem('kenowa_openrouter_key');
             if(!apiKey){ appendMessage('ai','⚙️ No OpenRouter API Key found. Open Settings to add one.'); return; }
@@ -910,32 +1008,46 @@ async function handleSend(textOverride=null) {
             for(const img of imagesToSend) contentArr.push({type:'image_url',image_url:{url:img}});
             if(!contentArr.length) return;
             url='https://openrouter.ai/api/v1/chat/completions';
-            body=JSON.stringify({model,messages:[{role:'system',content:sysPrompt},{role:'user',content:contentArr}]});
+            body=JSON.stringify({model,messages:[{role:'system',content:sysPrompt},{role:'user',content:contentArr}],stream:true});
             headers['Authorization']=`Bearer ${apiKey}`; headers['HTTP-Referer']='https://kenowa.extension'; headers['X-Title']='Kenowa Extension';
+            const sm=appendMessageStream(lockedChatId); hideTypingIndicator();
+            const response=await fetch(url,{method:'POST',headers,body,signal:abortController.signal});
+            if(!response.ok){ let e=`API error ${response.status}`; try{const ed=await response.json();e=ed.error?.message||JSON.stringify(ed);}catch(_){} throw new Error(e); }
+            const reader=response.body.getReader(); const dec=new TextDecoder(); let buf='';
+            while(true){
+                const {done,value}=await reader.read(); if(done) break;
+                buf+=dec.decode(value,{stream:true});
+                const lines=buf.split('\n'); buf=lines.pop()||'';
+                for(const line of lines){
+                    if(!line.startsWith('data: ')) continue;
+                    const s=line.slice(6).trim(); if(s==='[DONE]'||!s) continue;
+                    try{ const d=JSON.parse(s); const c=d.choices?.[0]?.delta?.content||''; if(c) sm.update(c); }catch(_){}
+                }
+            }
+            const aiMessage=sm.finalize();
+            if (!isExamMode && !isSQMode) setTimeout(() => getAISuggestions(text, aiMessage), 500);
         } else if(provider==='ollama'){
             apiKey=localStorage.getItem('kenowa_ollama_key');
             if(!apiKey){ appendMessage('ai','⚙️ No Ollama API Key found. Open Settings to add one.'); return; }
             const ollamaImages=imagesToSend.map(img=>img.split(',')[1]).filter(Boolean);
             url='https://ollama.com/api/chat';
-            body=JSON.stringify({model,messages:[{role:'system',content:sysPrompt},{role:'user',content:text||"Analyze this image",...(ollamaImages.length?{images:ollamaImages}:{})}],stream:false});
+            body=JSON.stringify({model,messages:[{role:'system',content:sysPrompt},{role:'user',content:text||"Analyze this image",...(ollamaImages.length?{images:ollamaImages}:{})}],stream:true});
             headers['Authorization']=`Bearer ${apiKey}`;
-        }
-
-        const response=await fetch(url,{method:'POST',headers,body,signal:abortController.signal});
-        if(!response.ok){ let e=`API error ${response.status}`; try{const ed=await response.json();e=ed.error?.message||JSON.stringify(ed);}catch(_){} throw new Error(e); }
-        const data=await response.json();
-        let aiMessage=''; let imageResponses=[];
-        if(provider==='gemini'){ const parts=data.candidates?.[0]?.content?.parts||[]; for(const p of parts){ if(p.text) aiMessage+=p.text; else if(p.inline_data) imageResponses.push(`data:${p.inline_data.mime_type||'image/png'};base64,${p.inline_data.data}`); } }
-        else if(provider==='openrouter') aiMessage=data.choices?.[0]?.message?.content||'';
-        else if(provider==='ollama') aiMessage=data.message?.content||'';
-        hideTypingIndicator();
-        if(imageResponses.length>0){ if(currentMode==='image'&&provider==='gemini') logImageGenSuccess(); appendMessage('ai',aiMessage||"Here's what I generated:",imageResponses,false,false,lockedChatId); }
-        else {
-            appendMessage('ai',aiMessage||"No content generated.",[],true,false,lockedChatId);
-            // Dynamic suggestions after AI response
-            if (!isExamMode && !isSQMode && currentMode !== 'image') {
-                setTimeout(() => getAISuggestions(text, aiMessage), 500);
+            const sm=appendMessageStream(lockedChatId); hideTypingIndicator();
+            const response=await fetch(url,{method:'POST',headers,body,signal:abortController.signal});
+            if(!response.ok){ let e=`API error ${response.status}`; try{const ed=await response.json();e=ed.error?.message||JSON.stringify(ed);}catch(_){} throw new Error(e); }
+            const reader=response.body.getReader(); const dec=new TextDecoder(); let buf='';
+            while(true){
+                const {done,value}=await reader.read(); if(done) break;
+                buf+=dec.decode(value,{stream:true});
+                const lines=buf.split('\n'); buf=lines.pop()||'';
+                for(const line of lines){
+                    if(!line.trim()) continue;
+                    try{ const d=JSON.parse(line); const c=d.message?.content||''; if(c) sm.update(c); }catch(_){}
+                }
             }
+            const aiMessage=sm.finalize();
+            if (!isExamMode && !isSQMode) setTimeout(() => getAISuggestions(text, aiMessage), 500);
         }
     } catch(err){
         hideTypingIndicator();
@@ -1704,4 +1816,696 @@ chrome.storage.local.get('pendingContextAction', (res) => {
         chrome.storage.local.remove('pendingContextAction');
         setTimeout(() => handleSend(res.pendingContextAction), 1000);
     }
+});
+
+// ════════════════════════════════════════════════════════════════════
+// FEATURE 1: Quick Actions Bar
+// ════════════════════════════════════════════════════════════════════
+function showQuickActions() {
+    const bar = document.getElementById('quick-actions-bar');
+    if (bar) bar.classList.remove('hidden');
+}
+
+function hideQuickActions() {
+    const bar = document.getElementById('quick-actions-bar');
+    if (bar) bar.classList.add('hidden');
+}
+
+function handleQuickAction(action) {
+    const promptPrefixes = {
+        translate: 'Translate the following text to English:\n\n',
+        summarize: 'Summarize the following text concisely:\n\n',
+        rewrite: 'Rewrite the following text to be clearer and more professional:\n\n',
+        code: 'Generate code for the following:\n\n'
+    };
+    const selectedText = window.getSelection()?.toString().trim();
+    if (selectedText) {
+        const prefix = promptPrefixes[action] || '';
+        handleSend(prefix + selectedText);
+    } else {
+        const input = document.getElementById('user-input');
+        if (input) {
+            input.value = '/' + action + ' ';
+            input.focus();
+            input.style.height = 'auto';
+            input.style.height = input.scrollHeight + 'px';
+        }
+    }
+    hideQuickActions();
+}
+
+function detectQuickAction(text) {
+    if (!text || typeof text !== 'string') { hideQuickActions(); return; }
+    const t = text.trim().toLowerCase();
+    if (t.startsWith('/translate') || t.startsWith('/summarize') || t.startsWith('/rewrite') || t.startsWith('/code')) {
+        showQuickActions();
+    } else {
+        hideQuickActions();
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// FEATURE 2: Text-to-Speech
+// ════════════════════════════════════════════════════════════════════
+let ttsCurrentUtterance = null;
+let ttsCurrentBtn = null;
+
+function speakText(text, btnEl) {
+    if (!window.speechSynthesis) return;
+    if (ttsCurrentUtterance) {
+        window.speechSynthesis.cancel();
+        if (ttsCurrentBtn) ttsCurrentBtn.classList.remove('speaking');
+        if (ttsCurrentBtn === btnEl) { ttsCurrentUtterance = null; ttsCurrentBtn = null; return; }
+    }
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+    utterance.onstart = () => {
+        if (btnEl) btnEl.classList.add('speaking');
+    };
+    utterance.onend = () => {
+        if (btnEl) btnEl.classList.remove('speaking');
+        ttsCurrentUtterance = null;
+        ttsCurrentBtn = null;
+    };
+    utterance.onerror = () => {
+        if (btnEl) btnEl.classList.remove('speaking');
+        ttsCurrentUtterance = null;
+        ttsCurrentBtn = null;
+    };
+    ttsCurrentUtterance = utterance;
+    ttsCurrentBtn = btnEl;
+    window.speechSynthesis.speak(utterance);
+}
+
+// Add TTS buttons to existing AI messages via MutationObserver
+function initTTSObserver() {
+    const ttsObserver = new MutationObserver(() => {
+        document.querySelectorAll('.message.ai').forEach(msgEl => {
+            if (msgEl.querySelector('.tts-btn')) return;
+            const actionsDiv = msgEl.querySelector('.message-actions');
+            if (!actionsDiv) return;
+            const textDiv = msgEl.querySelector('.typewriter-text, .message-actions + div, div:first-child:not(.message-actions)');
+            const textContent = textDiv?.textContent || msgEl.textContent || '';
+            if (textContent.trim().length <= 5) return;
+            const ttsBtn = document.createElement('button');
+            ttsBtn.className = 'tts-btn action-btn';
+            ttsBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg> Speak`;
+            ttsBtn.title = 'Read aloud';
+            ttsBtn.onclick = (e) => {
+                e.stopPropagation();
+                const fullText = textDiv?.textContent || msgEl.textContent || '';
+                speakText(fullText, ttsBtn);
+            };
+            actionsDiv.insertBefore(ttsBtn, actionsDiv.firstChild);
+        });
+    });
+    const target = document.getElementById('messages-list');
+    if (target) {
+        ttsObserver.observe(target, { childList: true, subtree: true });
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// FEATURE 3: Session-based Temp Chats
+// ════════════════════════════════════════════════════════════════════
+function isSessionChat(chatId) {
+    return chats[chatId] && chats[chatId]._session === true;
+}
+
+function startSessionChat() {
+    const sessionId = '_session_' + Date.now();
+    chats[sessionId] = {
+        title: 'Session Chat',
+        messages: [],
+        timestamp: Date.now(),
+        _session: true
+    };
+    currentChatId = sessionId;
+    if (messagesList) messagesList.innerHTML = '';
+    if (welcomeScreen) welcomeScreen.classList.add('hidden');
+    if (userInput) { userInput.value = ''; userInput.focus(); userInput.style.height = '24px'; }
+    if (historySidebar) { historySidebar.classList.remove('show'); document.getElementById('sidebar-scrim')?.classList.remove('show'); }
+    clearImages();
+    isGenerating = false; toggleSendButton(false);
+    lastSuggestionContainer = null;
+    updateShareButtonVisibility();
+    const ind = document.getElementById('session-indicator');
+    if (ind) ind.classList.remove('hidden');
+    return sessionId;
+}
+
+function cleanupSessionChats() {
+    for (const id in chats) {
+        if (chats[id]._session === true) {
+            delete chats[id];
+        }
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// FEATURE 4: Chat Folders with Drag-and-Drop
+// ════════════════════════════════════════════════════════════════════
+let folders = {};
+let activeFolderId = null;
+let selectedFolderColor = '#4f8ef7';
+
+function loadFolders() {
+    try {
+        folders = JSON.parse(localStorage.getItem('kenowa_folders') || '{}');
+    } catch(_) { folders = {}; }
+}
+
+function saveFolders() {
+    localStorage.setItem('kenowa_folders', JSON.stringify(folders));
+}
+
+function renderFolderList() {
+    const container = document.getElementById('folder-list');
+    if (!container) return;
+    container.innerHTML = '';
+    const ids = Object.keys(folders).sort((a, b) => (folders[a].created || 0) - (folders[b].created || 0));
+    ids.forEach(id => {
+        const folder = folders[id];
+        const item = document.createElement('div');
+        item.className = 'folder-item' + (activeFolderId === id ? ' active' : '');
+        item.setAttribute('data-folder-id', id);
+        item.draggable = false;
+        item.innerHTML = `
+            <svg class="folder-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="${folder.color || '#4f8ef7'}" stroke="none"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span class="folder-name">${sanitize(folder.name || 'Unnamed')}</span>
+            <span class="folder-chat-count">${(folder.chats || []).length}</span>
+            <button class="delete-folder-btn" title="Delete folder">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        `;
+        item.onclick = (e) => {
+            if (e.target.closest('.delete-folder-btn')) return;
+            activeFolderId = activeFolderId === id ? null : id;
+            renderFolderList();
+            renderHistoryList();
+        };
+        item.querySelector('.delete-folder-btn').onclick = (e) => {
+            e.stopPropagation();
+            if (!confirm('Delete folder "' + (folders[id]?.name || '') + '"? Chats will not be deleted.')) return;
+            delete folders[id];
+            if (activeFolderId === id) activeFolderId = null;
+            saveFolders();
+            renderFolderList();
+            renderHistoryList();
+        };
+        // Drag-over events on folder
+        item.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            item.classList.add('drag-over');
+        });
+        item.addEventListener('dragleave', () => {
+            item.classList.remove('drag-over');
+        });
+        item.addEventListener('drop', (e) => {
+            e.preventDefault();
+            item.classList.remove('drag-over');
+            const chatId = e.dataTransfer.getData('text/plain');
+            if (chatId && folders[id]) {
+                if (!folders[id].chats) folders[id].chats = [];
+                if (!folders[id].chats.includes(chatId)) {
+                    // Remove from all other folders first
+                    for (const fid in folders) {
+                        if (folders[fid].chats) {
+                            folders[fid].chats = folders[fid].chats.filter(c => c !== chatId);
+                        }
+                    }
+                    folders[id].chats.push(chatId);
+                    saveFolders();
+                    renderFolderList();
+                    renderHistoryList();
+                }
+            }
+        });
+        container.appendChild(item);
+    });
+}
+
+function createFolder(name, color) {
+    const id = 'folder_' + Date.now();
+    folders[id] = { name: name.trim(), color: color || '#4f8ef7', chats: [], created: Date.now() };
+    saveFolders();
+    renderFolderList();
+    return id;
+}
+
+function getFolderForChat(chatId) {
+    for (const id in folders) {
+        if (folders[id].chats && folders[id].chats.includes(chatId)) return id;
+    }
+    return null;
+}
+
+// Enhanced renderHistoryList with folders filter + drag
+renderHistoryList = function() {
+    if (!historyList) return; historyList.innerHTML = '';
+    let ids = Object.keys(chats).sort((a, b) => chats[b].timestamp - chats[a].timestamp);
+    // Filter by active folder
+    if (activeFolderId && folders[activeFolderId]) {
+        const folderChatIds = folders[activeFolderId].chats || [];
+        ids = ids.filter(id => folderChatIds.includes(id));
+    }
+    // Exclude session chats from sidebar
+    ids = ids.filter(id => !isSessionChat(id));
+    ids.forEach(id => {
+        const chat = chats[id];
+        const item = document.createElement('div');
+        item.className = 'history-item';
+        item.draggable = true;
+        item.setAttribute('data-chat-id', id);
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'history-item-title';
+        titleSpan.textContent = chat.title || 'New Chat';
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-chat-btn';
+        deleteBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+        deleteBtn.onclick = e => deleteChat(e, id);
+        item.appendChild(titleSpan);
+        item.appendChild(deleteBtn);
+        item.onclick = e => { if (!e.target.closest('.delete-chat-btn')) loadChat(id, true); };
+        // Drag events
+        item.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', id);
+            item.classList.add('dragging');
+        });
+        item.addEventListener('dragend', () => {
+            item.classList.remove('dragging');
+        });
+        historyList.appendChild(item);
+    });
+};
+
+// ════════════════════════════════════════════════════════════════════
+// FEATURE 5: AI Model Comparison
+// ════════════════════════════════════════════════════════════════════
+const COMPARISON_MODELS = [
+    { provider: 'gemini', model: 'gemini-2.0-flash', label: 'Gemini Flash' },
+    { provider: 'openrouter', model: 'google/gemini-2.0-flash-exp:free', label: 'Gemini Free' },
+    { provider: 'openrouter', model: 'openai/gpt-4o-mini', label: 'GPT-4o Mini' }
+];
+
+async function runComparison(prompt) {
+    const panel = document.getElementById('comparison-panel');
+    const content = document.getElementById('comparison-content');
+    if (!panel || !content) return;
+    panel.classList.remove('hidden');
+    content.innerHTML = '';
+    COMPARISON_MODELS.forEach((cfg, idx) => {
+        const col = document.createElement('div');
+        col.className = 'comparison-col';
+        col.innerHTML = `
+            <div class="comparison-col-header">
+                <span class="model-badge">${sanitize(cfg.label)}</span>
+                ${sanitize(cfg.model)}
+            </div>
+            <div class="comparison-col-body">
+                <div class="loading-spinner">Generating</div>
+            </div>
+        `;
+        content.appendChild(col);
+        callComparisonModel(cfg, prompt, idx, col);
+    });
+}
+
+async function callComparisonModel(cfg, prompt, idx, colEl) {
+    const bodyEl = colEl.querySelector('.comparison-col-body');
+    try {
+        const provider = cfg.provider;
+        const model = cfg.model;
+        let apiKey, url, body, headers = { 'Content-Type': 'application/json' };
+        if (provider === 'gemini') {
+            apiKey = localStorage.getItem('kenowa_api_key');
+            if (!apiKey) { bodyEl.innerHTML = '<span style="color:var(--danger)">No API key</span>'; return; }
+            url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+            body = JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] });
+        } else if (provider === 'openrouter') {
+            apiKey = localStorage.getItem('kenowa_openrouter_key');
+            if (!apiKey) { bodyEl.innerHTML = '<span style="color:var(--danger)">No API key</span>'; return; }
+            url = 'https://openrouter.ai/api/v1/chat/completions';
+            body = JSON.stringify({ model, messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }] });
+            headers['Authorization'] = `Bearer ${apiKey}`;
+            headers['HTTP-Referer'] = 'https://kenowa.extension';
+            headers['X-Title'] = 'Kenowa Extension';
+        } else {
+            bodyEl.innerHTML = '<span style="color:var(--danger)">Unsupported</span>'; return;
+        }
+        const res = await fetch(url, { method: 'POST', headers, body });
+        if (!res.ok) { bodyEl.innerHTML = `<span style="color:var(--danger)">Error ${res.status}</span>`; return; }
+        const data = await res.json();
+        let text = '';
+        if (provider === 'gemini') text = data.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || '';
+        else if (provider === 'openrouter') text = data.choices?.[0]?.message?.content || '';
+        const innerHTML = typeof parseMarkdown === 'function' ? parseMarkdown(text) : escapeHtml(text);
+        bodyEl.innerHTML = linkify(innerHTML) || '<span style="color:var(--text-muted)">No response</span>';
+    } catch (err) {
+        bodyEl.innerHTML = `<span style="color:var(--danger)">${sanitize(err.message)}</span>`;
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// FEATURE 6: Multi-tab Exam Mode
+// ════════════════════════════════════════════════════════════════════
+let examModeTabIds = [];
+let multiExamActive = false;
+let multiExamIndex = 0;
+
+function toggleMultiTabExam() {
+    if (multiExamActive) {
+        multiExamActive = false;
+        examModeTabIds = [];
+        multiExamIndex = 0;
+        if (examModeBtn) examModeBtn.classList.remove('active');
+        examAppendMessage('🛑 Multi-tab Exam Mode stopped.');
+        updateMultiExamIndicator();
+        return;
+    }
+    chrome.tabs.query({ currentWindow: true }, tabs => {
+        const validTabs = tabs.filter(t => t.url && isSafeUrl(t.url) && typeof t.id === 'number');
+        if (validTabs.length < 2) {
+            appendMessage('ai', '⚠️ Multi-tab Exam Mode needs at least 2 open http/https tabs.');
+            return;
+        }
+        multiExamActive = true;
+        multiExamIndex = 0;
+        examModeTabIds = validTabs.map(t => t.id);
+        examModeBtn?.classList.add('active');
+        examAppendMessage(`🎓 **Multi-tab Exam Mode ON** — Tracking ${examModeTabIds.length} tabs. AI will cycle through each tab.`);
+        updateMultiExamIndicator();
+        runMultiExamStep();
+    });
+}
+
+function updateMultiExamIndicator() {
+    const center = document.querySelector('.header-center');
+    if (!center) return;
+    let el = document.getElementById('multi-exam-indicator');
+    if (!multiExamActive || !examModeTabIds.length) {
+        if (el) el.remove();
+        return;
+    }
+    if (!el) {
+        el = document.createElement('span');
+        el.id = 'multi-exam-indicator';
+        el.className = 'exam-multi-tab-indicator';
+        center.appendChild(el);
+    }
+    el.textContent = `📚 Multi-Exam (${multiExamIndex + 1}/${examModeTabIds.length})`;
+}
+
+async function runMultiExamStep() {
+    if (!multiExamActive || examModeTabIds.length === 0) return;
+    const tabId = examModeTabIds[multiExamIndex];
+    try {
+        const tab = await chrome.tabs.get(tabId);
+        if (!tab?.url || !isSafeUrl(tab.url)) {
+            examModeTabIds.splice(multiExamIndex, 1);
+            if (examModeTabIds.length < 2) { toggleMultiTabExam(); return; }
+            multiExamIndex = multiExamIndex % examModeTabIds.length;
+            updateMultiExamIndicator();
+            setTimeout(runMultiExamStep, 3000);
+            return;
+        }
+        updateMultiExamIndicator();
+        // Process this tab using existing exam infrastructure
+        const extraction = await chrome.scripting.executeScript({
+            target: { tabId },
+            func: () => {
+                const text = document.body?.innerText || '';
+                const answerableInputs = document.querySelectorAll('input[type="radio"]:not([disabled]),input[type="checkbox"]:not([disabled])').length;
+                const hasFinishBtn = Array.from(document.querySelectorAll('button,input[type="submit"],a')).some(b => {
+                    const t = (b.innerText || b.value || b.textContent || '').toLowerCase().trim();
+                    return (t.includes('finish') || t.includes('submit all')) && (t.includes('attempt') || t.includes('quiz') || t.includes('exam') || t.includes('test') || t.length < 25);
+                });
+                return { text: text.substring(0, 8000), answerableInputs, hasFinishBtn };
+            }
+        });
+        if (!extraction?.[0]?.result) throw new Error('Could not read page');
+        const { text: pageText, answerableInputs, hasFinishBtn } = extraction[0].result;
+        if (answerableInputs === 0 && !hasFinishBtn) {
+            // No questions — move to next tab
+            multiExamIndex = (multiExamIndex + 1) % examModeTabIds.length;
+            updateMultiExamIndicator();
+            if (multiExamActive) setTimeout(runMultiExamStep, 3000);
+            return;
+        }
+        const prompt = `You are an expert exam assistant. Find all questions on this page and return ONLY a JSON array of exact answer texts. If no questions, return [].\n\nPage text:\n${pageText}`;
+        showTypingIndicator(`📚 Multi-Exam: Tab ${multiExamIndex + 1}/${examModeTabIds.length}`);
+        const aiRaw = await apiGenerateText(prompt);
+        hideTypingIndicator();
+        if (aiRaw && aiRaw.trim() !== '[]') {
+            examAppendMessage(`📚 Tab ${multiExamIndex + 1}: ✅ Answer found`);
+            const prevTabId = currentActiveTabId;
+            await executeExamClicker(tabId, aiRaw, false, false, hasFinishBtn, true);
+        } else {
+            examAppendMessage(`📚 Tab ${multiExamIndex + 1}: ℹ️ No questions`);
+        }
+        multiExamIndex = (multiExamIndex + 1) % examModeTabIds.length;
+        updateMultiExamIndicator();
+        if (multiExamActive) setTimeout(runMultiExamStep, 5000);
+    } catch (err) {
+        examAppendMessage(`📚 Tab ${multiExamIndex + 1}: ⚠️ Error - ${sanitize(err.message)}`);
+        examModeTabIds.splice(multiExamIndex, 1);
+        if (examModeTabIds.length < 2) { toggleMultiTabExam(); return; }
+        multiExamIndex = multiExamIndex % examModeTabIds.length;
+        updateMultiExamIndicator();
+        if (multiExamActive) setTimeout(runMultiExamStep, 5000);
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// FEATURE 7: Bug Report System — opens the bug report website in a new tab
+// ════════════════════════════════════════════════════════════════════
+const BUG_REPORT_URL = 'https://kenowa.synergize.co/';
+
+function openBugReportSite() {
+    chrome.tabs.create({ url: BUG_REPORT_URL }).catch(() => {
+        window.open(BUG_REPORT_URL, '_blank');
+    });
+}
+
+// ════════════════════════════════════════════════════════════════════
+// SECOND DOMContentLoaded — additional event bindings for new features
+// ════════════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+    const granted = localStorage.getItem('kenowa_access_granted_until');
+    if (!granted || Date.now() >= parseInt(granted)) return;
+    loadFolders();
+    renderFolderList();
+    initTTSObserver();
+    cleanupSessionChats();
+    // Session indicator — hide on startup
+    const sessionInd = document.getElementById('session-indicator');
+    if (sessionInd) sessionInd.classList.add('hidden');
+
+    // Quick Action buttons
+    document.querySelectorAll('.quick-action-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const action = btn.getAttribute('data-action');
+            if (action) handleQuickAction(action);
+        });
+    });
+
+    // Compare button (special quick action)
+    document.getElementById('compare-btn')?.addEventListener('click', () => {
+        const input = document.getElementById('user-input');
+        const text = input?.value.trim();
+        if (!text) { showToast('Type a message first to compare models', 'info'); return; }
+        runComparison(text);
+    });
+
+    // Close comparison panel
+    document.getElementById('close-comparison-btn')?.addEventListener('click', () => {
+        const panel = document.getElementById('comparison-panel');
+        if (panel) panel.classList.add('hidden');
+    });
+
+    // Folder management
+    document.getElementById('add-folder-btn')?.addEventListener('click', () => {
+        const modal = document.getElementById('folder-modal');
+        const input = document.getElementById('folder-name-input');
+        const title = document.getElementById('folder-modal-title');
+        if (modal) modal.classList.remove('hidden');
+        if (title) title.textContent = 'New Folder';
+        if (input) { input.value = ''; input.focus(); }
+        selectedFolderColor = '#4f8ef7';
+        document.querySelectorAll('.folder-color-swatch').forEach(s => s.classList.toggle('selected', s.dataset.color === '#4f8ef7'));
+    });
+
+    document.getElementById('folder-cancel-btn')?.addEventListener('click', () => {
+        document.getElementById('folder-modal')?.classList.add('hidden');
+    });
+
+    document.querySelectorAll('.folder-color-swatch').forEach(swatch => {
+        swatch.addEventListener('click', () => {
+            document.querySelectorAll('.folder-color-swatch').forEach(s => s.classList.remove('selected'));
+            swatch.classList.add('selected');
+            selectedFolderColor = swatch.dataset.color;
+        });
+    });
+
+    document.getElementById('folder-save-btn')?.addEventListener('click', () => {
+        const input = document.getElementById('folder-name-input');
+        const name = input?.value.trim();
+        if (!name) { showToast('Please enter a folder name', 'error'); return; }
+        createFolder(name, selectedFolderColor);
+        document.getElementById('folder-modal')?.classList.add('hidden');
+        showToast('Folder created', 'success');
+    });
+
+    // Bug Report — open the bug report website in a new tab
+    document.getElementById('bug-report-btn')?.addEventListener('click', () => {
+        openBugReportSite();
+    });
+
+    // Session chat (hold Alt+Shift+N for new session chat)
+    document.addEventListener('keydown', (e) => {
+        if (e.altKey && e.shiftKey && e.key === 'N') {
+            e.preventDefault();
+            startSessionChat();
+            showToast('Session chat started (not saved)', 'info');
+        }
+    });
+
+    // Cleanup session chats on page unload
+    window.addEventListener('beforeunload', () => {
+        cleanupSessionChats();
+    });
+
+    // Detect quick action commands in input
+    const userInputEl = document.getElementById('user-input');
+    if (userInputEl) {
+        userInputEl.addEventListener('input', () => {
+            detectQuickAction(userInputEl.value);
+        });
+        userInputEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                hideQuickActions();
+            }
+        });
+    }
+
+    // Multi-tab exam mode: Alt+Shift+E
+    document.addEventListener('keydown', (e) => {
+        if (e.altKey && e.shiftKey && e.key === 'E') {
+            e.preventDefault();
+            toggleMultiTabExam();
+        }
+    });
+
+    // Image error message interceptor — catch API image errors and show friendly text
+    function initImageErrorHandler() {
+        const target = document.getElementById('messages-list');
+        if (!target) return;
+        const imgErrObserver = new MutationObserver(() => {
+            target.querySelectorAll('.message.ai:not(.img-err-checked)').forEach(msgEl => {
+                msgEl.classList.add('img-err-checked');
+                const textDiv = msgEl.querySelector('div:not(.message-actions)');
+                if (!textDiv) return;
+                const raw = textDiv.textContent || '';
+                const errPatterns = [
+                    /does not support image/i,
+                    /cannot read.*\.png/i,
+                    /image.*not supported/i,
+                    /model.*not.*support.*image/i,
+                    /image input.*not.*allowed/i
+                ];
+                if (errPatterns.some(p => p.test(raw))) {
+                    textDiv.textContent = '⚠️ This AI model does not support image input. Please switch to Gemini or another vision-capable model in Settings to send images.';
+                }
+            });
+        });
+        imgErrObserver.observe(target, { childList: true, subtree: true });
+    }
+    initImageErrorHandler();
+
+    // Image model compatibility check — warn before attaching images to incompatible models
+    const fileInputEl = document.getElementById('file-input');
+    if (fileInputEl) {
+        fileInputEl.addEventListener('change', function() {
+            const files = Array.from(this.files || []);
+            if (files.length === 0) return;
+            const hasImages = files.some(f => f.type.startsWith('image/'));
+            if (!hasImages) return;
+            const provider = localStorage.getItem('kenowa_provider') || 'gemini';
+            const model = localStorage.getItem('kenowa_model') || 'gemini-2.0-flash';
+            const textOnlyModels = [
+                'deepseek/deepseek-r1',
+                'deepseek-v3.1:671b-cloud',
+                'qwen3-coder:480b-cloud',
+                'gpt-oss:120b-cloud',
+                'meta-llama/llama-3.1-8b-instruct:free',
+                'mistralai/mistral-7b-instruct:free'
+            ];
+            if (textOnlyModels.includes(model)) {
+                appendMessage('ai', `⚠️ The model "${model}" does not support image input. Image will not be sent. Please switch to Gemini or a vision-capable model in Settings.`);
+                this.value = '';
+                currentDraftImages = [];
+                renderImagePreviews();
+            }
+        });
+    }
+
+    // ── Liquid Glass: Floating Particles ────────────────────
+    (function initGlassParticles() {
+        const container = document.createElement('div');
+        container.className = 'glass-particles';
+        document.body.appendChild(container);
+        const count = 25;
+        for (let i = 0; i < count; i++) {
+            const p = document.createElement('div');
+            p.className = 'glass-particle';
+            const size = 2 + Math.random() * 5;
+            p.style.cssText = `
+                width:${size}px;height:${size}px;
+                left:${Math.random() * 100}%;
+                top:${Math.random() * 100}%;
+                opacity:${0.1 + Math.random() * 0.3};
+                animation-duration:${15 + Math.random() * 25}s;
+                animation-delay:${Math.random() * -20}s;
+            `;
+            container.appendChild(p);
+        }
+    })();
+
+    // ── Liquid Glass: Enhanced Cursor Ripple ──────────────
+    (function initRipple() {
+        const container = document.createElement('div');
+        container.className = 'ripple-container';
+        document.body.appendChild(container);
+
+        function createRipple(x, y) {
+            const ring = document.createElement('div');
+            ring.className = 'ripple-ring';
+            ring.style.cssText = `left:${x}px;top:${y}px`;
+            container.appendChild(ring);
+            setTimeout(() => ring.remove(), 1200);
+
+            const sparks = 4 + Math.floor(Math.random() * 4);
+            for (let i = 0; i < sparks; i++) {
+                const spark = document.createElement('div');
+                spark.className = 'ripple-spark';
+                const angle = (i / sparks) * Math.PI * 2 + Math.random() * 0.4;
+                const dist = 15 + Math.random() * 25;
+                spark.style.cssText = `
+                    left:${x + Math.cos(angle) * dist}px;
+                    top:${y + Math.sin(angle) * dist}px;
+                    animation-delay:${Math.random() * 0.12}s;
+                `;
+                container.appendChild(spark);
+                setTimeout(() => spark.remove(), 800);
+            }
+        }
+
+        document.addEventListener('click', (e) => createRipple(e.clientX, e.clientY));
+        document.addEventListener('touchstart', (e) => {
+            const t = e.touches[0];
+            if (t) createRipple(t.clientX, t.clientY);
+        }, { passive: true });
+    })();
 });
