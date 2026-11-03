@@ -253,6 +253,10 @@ async function generateSelectionAnswer(text, config, history = [], options = {})
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message?.type === 'kenowa-check-update') {
+        checkGithubUpdate().then(info => sendResponse({ ok: true, updateInfo: info })).catch(err => sendResponse({ ok: false, error: err.message }));
+        return true;
+    }
     if (message?.type === 'kenowa-selection-stop') {
         const requestId = String(message.requestId || '');
         const active = activeSelectionRequests.get(requestId);
@@ -303,4 +307,87 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (activeSelectionRequests.get(requestId)?.controller === controller) activeSelectionRequests.delete(requestId);
     });
     return true;
+});
+
+
+// ============================================================
+// AUTO-UPDATE & GITHUB RELEASE CHECKER
+// ============================================================
+const GITHUB_REPO = 'nadeemmhdm/kenowa-extesions';
+const UPDATE_ALARM_NAME = 'kenowa-update-check';
+
+function isNewerVersion(currentVer, latestVer) {
+    const cleanCur = String(currentVer || '').replace(/^v/, '').trim();
+    const cleanLat = String(latestVer || '').replace(/^v/, '').trim();
+    if (!cleanLat) return false;
+    const curParts = cleanCur.split('.').map(n => parseInt(n, 10) || 0);
+    const latParts = cleanLat.split('.').map(n => parseInt(n, 10) || 0);
+    const maxLen = Math.max(curParts.length, latParts.length);
+    for (let i = 0; i < maxLen; i++) {
+        const c = curParts[i] || 0;
+        const l = latParts[i] || 0;
+        if (l > c) return true;
+        if (l < c) return false;
+    }
+    return false;
+}
+
+async function checkGithubUpdate() {
+    try {
+        const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+            headers: { 'Accept': 'application/vnd.github.v3+json' }
+        });
+        if (!response.ok) return null;
+        const data = await response.json();
+        const latestTag = data.tag_name || '';
+        const currentVersion = chrome.runtime.getManifest().version;
+        const updateAvailable = isNewerVersion(currentVersion, latestTag);
+        
+        // Find zip asset if available
+        let zipAssetUrl = null;
+        if (Array.isArray(data.assets)) {
+            const zip = data.assets.find(a => a.name && a.name.endsWith('.zip'));
+            if (zip) zipAssetUrl = zip.browser_download_url;
+        }
+
+        const updateInfo = {
+            updateAvailable,
+            currentVersion,
+            latestVersion: latestTag.replace(/^v/, ''),
+            tagName: latestTag,
+            title: data.name || latestTag,
+            notes: data.body || 'New improvements and bug fixes.',
+            htmlUrl: data.html_url || `https://github.com/${GITHUB_REPO}/releases/latest`,
+            downloadUrl: zipAssetUrl || data.html_url || `https://github.com/${GITHUB_REPO}/releases/latest`,
+            publishedAt: data.published_at || '',
+            checkedAt: Date.now()
+        };
+
+        await chrome.storage.local.set({ kenowaUpdateInfo: updateInfo });
+        return updateInfo;
+    } catch (err) {
+        console.warn('Kenowa GitHub update check error:', err);
+        return null;
+    }
+}
+
+// Schedule recurring background checks every 4 hours (240 minutes)
+chrome.alarms.get(UPDATE_ALARM_NAME, alarm => {
+    if (!alarm) {
+        chrome.alarms.create(UPDATE_ALARM_NAME, { periodInMinutes: 240, delayInMinutes: 1 });
+    }
+});
+
+chrome.alarms.onAlarm.addListener(alarm => {
+    if (alarm.name === UPDATE_ALARM_NAME) {
+        checkGithubUpdate();
+    }
+});
+
+chrome.runtime.onInstalled.addListener(() => {
+    checkGithubUpdate();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+    checkGithubUpdate();
 });

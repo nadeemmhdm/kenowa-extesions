@@ -64,6 +64,10 @@
         </div>
         <div class="header-center"></div>
         <div class="header-right">
+          <button id="update-badge" class="update-badge hidden" type="button" title="New version available">
+            <span class="update-pulse"></span>
+            <span id="update-badge-label">Update</span>
+          </button>
         </div>
       </header>
 
@@ -152,6 +156,14 @@
         </button>
       </div>
       <div class="modal-body">
+        <div class="settings-update-row">
+          <div>
+            <div style="font-weight:600;font-size:0.84rem;color:var(--text-main);">Kenowa Updates</div>
+            <div id="settings-update-status" style="font-size:0.75rem;color:var(--text-sub);margin-top:2px;">Version v2.18 · Checking...</div>
+          </div>
+          <button id="check-update-btn" class="settings-check-btn" type="button">Check Now</button>
+        </div>
+
         <label for="settings-provider-input" style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">AI Provider</label>
         <select id="settings-provider-input" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:6px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
           <option value="gemini">Google Gemini</option>
@@ -338,6 +350,43 @@
   <div id="session-indicator" class="session-indicator hidden">
     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
     <span>Session chat — not saved</span>
+  </div>
+
+
+  <!-- Update Notification Modal -->
+  <div id="update-modal" class="modal-overlay hidden">
+    <div class="modal-content update-modal-content">
+      <div class="modal-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="update-icon-circle">🚀</div>
+          <div>
+            <h2 style="font-size:1.05rem;">New Version Available!</h2>
+            <p id="update-modal-ver" style="color:var(--accent);font-size:0.8rem;font-weight:600;margin-top:2px;">Update available</p>
+          </div>
+        </div>
+        <button id="close-update-btn" class="settings-close-btn" type="button" title="Close" aria-label="Close">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 16px 20px;">
+        <div class="update-banner-box">
+          <p style="font-size:0.84rem;color:var(--text-main);line-height:1.5;">You are currently running an older version of Kenowa AI. A newer release is available with improved performance, bug fixes, and new capabilities.</p>
+        </div>
+        
+        <label style="font-size:0.75rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin:14px 0 6px;">Release Notes</label>
+        <div id="update-release-notes" class="update-notes-box"></div>
+
+        <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">
+          <a id="update-download-btn" href="https://github.com/nadeemmhdm/kenowa-extesions/releases/latest" target="_blank" rel="noopener" class="primary-btn update-download-cta">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download & Update Release
+          </a>
+          <button id="update-dismiss-btn" type="button" class="secondary-btn update-dismiss-btn">
+            Remind Me Later
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="sidepanel.js"></script>

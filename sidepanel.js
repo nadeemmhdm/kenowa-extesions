@@ -2722,6 +2722,7 @@ async function runMultiExamStep() {
 // SECOND DOMContentLoaded — additional event bindings for new features
 // ════════════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
+    initUpdateChecker();
     loadFolders();
     renderFolderList();
     initTTSObserver();
@@ -2945,3 +2946,122 @@ document.addEventListener('DOMContentLoaded', () => {
         }, { passive: true });
     })();
 });
+
+
+// ============================================================
+// EXTENSION AUTO-UPDATE UI & MODAL HANDLER
+// ============================================================
+const DISMISSED_UPDATE_KEY = 'kenowa_dismissed_update_tag';
+
+function initUpdateChecker() {
+    const updateBadge = document.getElementById('update-badge');
+    const updateBadgeLabel = document.getElementById('update-badge-label');
+    const updateModal = document.getElementById('update-modal');
+    const closeUpdateBtn = document.getElementById('close-update-btn');
+    const updateDismissBtn = document.getElementById('update-dismiss-btn');
+    const updateDownloadBtn = document.getElementById('update-download-btn');
+    const updateModalVer = document.getElementById('update-modal-ver');
+    const updateReleaseNotes = document.getElementById('update-release-notes');
+    const settingsUpdateStatus = document.getElementById('settings-update-status');
+    const checkUpdateBtn = document.getElementById('check-update-btn');
+
+    const currentVersion = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest)
+        ? chrome.runtime.getManifest().version
+        : '2.18';
+
+    function openUpdateModal(info) {
+        if (!updateModal) return;
+        if (updateModalVer) updateModalVer.textContent = `v${info.latestVersion} available (Running: v${currentVersion})`;
+        if (updateReleaseNotes) updateReleaseNotes.textContent = info.notes || 'No release notes provided.';
+        if (updateDownloadBtn) updateDownloadBtn.href = info.downloadUrl || info.htmlUrl;
+        updateModal.classList.remove('hidden');
+    }
+
+    function closeUpdateModal() {
+        if (updateModal) updateModal.classList.add('hidden');
+    }
+
+    if (closeUpdateBtn) closeUpdateBtn.addEventListener('click', closeUpdateModal);
+    if (updateDismissBtn) {
+        updateDismissBtn.addEventListener('click', () => {
+            closeUpdateModal();
+            chrome.storage.local.get('kenowaUpdateInfo', data => {
+                const info = data.kenowaUpdateInfo;
+                if (info?.tagName) {
+                    localStorage.setItem(DISMISSED_UPDATE_KEY, JSON.stringify({ tag: info.tagName, at: Date.now() }));
+                }
+            });
+        });
+    }
+
+    if (updateBadge) {
+        updateBadge.addEventListener('click', () => {
+            chrome.storage.local.get('kenowaUpdateInfo', data => {
+                if (data.kenowaUpdateInfo) openUpdateModal(data.kenowaUpdateInfo);
+            });
+        });
+    }
+
+    function applyUpdateState(info) {
+        if (!info) return;
+        if (settingsUpdateStatus) {
+            settingsUpdateStatus.textContent = info.updateAvailable
+                ? `Update available: v${info.latestVersion} (Current: v${currentVersion})`
+                : `Up to date (v${currentVersion})`;
+            settingsUpdateStatus.style.color = info.updateAvailable ? 'var(--accent)' : 'var(--text-sub)';
+        }
+
+        if (info.updateAvailable) {
+            if (updateBadge) {
+                updateBadge.classList.remove('hidden');
+                if (updateBadgeLabel) updateBadgeLabel.textContent = `v${info.latestVersion}`;
+            }
+
+            // Check if dismissed recently (within 24 hours)
+            let dismissed = null;
+            try { dismissed = JSON.parse(localStorage.getItem(DISMISSED_UPDATE_KEY)); } catch(_) {}
+            const oneDay = 24 * 60 * 60 * 1000;
+            const isDismissedRecent = dismissed && dismissed.tag === info.tagName && (Date.now() - dismissed.at < oneDay);
+
+            if (!isDismissedRecent) {
+                setTimeout(() => openUpdateModal(info), 800);
+            }
+        } else {
+            if (updateBadge) updateBadge.classList.add('hidden');
+        }
+    }
+
+    // Load cached update status
+    chrome.storage.local.get('kenowaUpdateInfo', data => {
+        if (data.kenowaUpdateInfo) applyUpdateState(data.kenowaUpdateInfo);
+    });
+
+    // Check on startup
+    chrome.runtime.sendMessage({ type: 'kenowa-check-update' }, response => {
+        if (response?.ok && response.updateInfo) {
+            applyUpdateState(response.updateInfo);
+        }
+    });
+
+    // Manual check button in Settings
+    if (checkUpdateBtn) {
+        checkUpdateBtn.addEventListener('click', () => {
+            checkUpdateBtn.disabled = true;
+            checkUpdateBtn.textContent = 'Checking...';
+            chrome.runtime.sendMessage({ type: 'kenowa-check-update' }, response => {
+                checkUpdateBtn.disabled = false;
+                checkUpdateBtn.textContent = 'Check Now';
+                if (response?.ok && response.updateInfo) {
+                    applyUpdateState(response.updateInfo);
+                    if (response.updateInfo.updateAvailable) {
+                        openUpdateModal(response.updateInfo);
+                    } else {
+                        showToast(`You're on the latest version (v${currentVersion})!`, 'success');
+                    }
+                } else {
+                    showToast('Could not reach GitHub for updates.', 'error');
+                }
+            });
+        });
+    }
+}
