@@ -3318,6 +3318,7 @@ function initUpdateChecker() {
 
     // Check on startup
     chrome.runtime.sendMessage({ type: 'kenowa-check-update' }, response => {
+        if (chrome.runtime.lastError) return;
         if (response?.ok && response.updateInfo) {
             applyUpdateState(response.updateInfo);
         }
@@ -3331,6 +3332,10 @@ function initUpdateChecker() {
             chrome.runtime.sendMessage({ type: 'kenowa-check-update' }, response => {
                 checkUpdateBtn.disabled = false;
                 checkUpdateBtn.textContent = 'Check Now';
+                if (chrome.runtime.lastError) {
+                    showToast('Could not reach extension background for updates.', 'error');
+                    return;
+                }
                 if (response?.ok && response.updateInfo) {
                     applyUpdateState(response.updateInfo);
                     if (response.updateInfo.updateAvailable) {

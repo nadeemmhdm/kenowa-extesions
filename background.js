@@ -274,9 +274,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             active.controller.abort('user-stop');
             sendResponse({ ok: true });
         } else sendResponse({ ok: false, error: 'There is no active Kenowa request to stop.' });
-        return;
+        return false;
     }
-    if (message?.type !== 'kenowa-selection-generate') return;
+    if (message?.action === 'block_website') {
+        sendResponse({ ok: true });
+        return false;
+    }
+    if (message?.type !== 'kenowa-selection-generate') return false;
     if (typeof sender.tab?.id !== 'number') { sendResponse({ ok: false, error: 'This action must be started from a webpage.' }); return; }
     const text = String(message.text || '').trim();
     if (!text) { sendResponse({ ok: false, error: 'Select some text first.' }); return; }
