@@ -764,6 +764,9 @@ async function discoverProviderModels(provider, apiKey) {
         throw err;
     }
     if (!response.ok) {
+        if (response.status === 403 && provider === 'ollama_local') {
+            throw new Error('Ollama Local returned 403 Forbidden. Restart Ollama from your Start Menu/system tray so it loads OLLAMA_ORIGINS=*, or reload the extension.');
+        }
         let detail = `Provider returned ${response.status}`;
         try { detail = (await response.json()).error?.message || detail; } catch (_) {}
         throw new Error(detail);
@@ -1618,6 +1621,9 @@ async function handleSend(textOverride=null) {
                 throw new Error(`Could not connect to local Ollama at ${ollamaBaseUrl}. Make sure Ollama is running ('ollama serve' or open the Ollama app). Detail: ${netErr.message}`);
             }
             if (!response.ok) {
+                if (response.status === 403) {
+                    throw new Error('Ollama Local error 403: Cross-Origin access blocked. Restart Ollama from your Start Menu/system tray so it loads OLLAMA_ORIGINS=*, or reload the extension.');
+                }
                 let e = `Ollama Local error ${response.status}`;
                 try { const ed = await response.json(); e = ed.error || ed.message || JSON.stringify(ed); } catch (_) {}
                 throw new Error(e);
@@ -1937,6 +1943,9 @@ async function apiGenerateText(prompt) {
     try {
         const res = await fetch(url, { method: 'POST', headers, body, signal: controller.signal });
         if (!res.ok) {
+            if (res.status === 403 && isOllamaLocal) {
+                throw new Error('Ollama Local error 403: Cross-Origin access blocked. Restart Ollama from your Start Menu/system tray so it loads OLLAMA_ORIGINS=*, or reload the extension.');
+            }
             let detail = `HTTP ${res.status}`;
             try { const errorData = await res.json(); detail = errorData?.error?.message || errorData?.error || errorData?.message || detail; } catch (_) {}
             throw new Error(`${provider} / ${model}: ${detail}`);

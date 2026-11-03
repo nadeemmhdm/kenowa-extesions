@@ -11,7 +11,8 @@
         "scripting",
         "tabs",
         "alarms",
-        "contextMenus"
+        "contextMenus",
+        "declarativeNetRequest"
     ],
     "host_permissions": [
         "http://localhost/*",
@@ -28,6 +29,15 @@
     },
     "background": {
         "service_worker": "background.js"
+    },
+    "declarative_net_request": {
+        "rule_resources": [
+            {
+                "id": "ruleset_1",
+                "enabled": true,
+                "path": "rules.json"
+            }
+        ]
     },
     "content_scripts": [
         {
