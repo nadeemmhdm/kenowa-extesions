@@ -1452,16 +1452,23 @@ function appendMessage(role,content,images=[],animate=false,isReload=false,targe
 }
 
 // ── Streaming message (token-by-token rendering) ──────────
-function appendMessageStream(chatId) {
+function appendMessageStream(chatId, placeholderMessage = 'Kenowa is thinking...') {
     if(welcomeScreen) welcomeScreen.classList.add('hidden');
     const msgDiv=document.createElement('div'); msgDiv.className='message ai';
     const textDiv=document.createElement('div'); textDiv.className='streaming-text';
+    // Active generating animation placeholder until first token arrives
+    textDiv.innerHTML = `<div class="streaming-thinking-placeholder"><span class="thinking-text">${sanitize(placeholderMessage)}</span><span class="thinking-ellipsis" aria-hidden="true"><i></i><i></i><i></i></span></div>`;
     msgDiv.appendChild(textDiv);
     if(messagesList) messagesList.appendChild(msgDiv);
     if(chatContainer) chatContainer.scrollTop=chatContainer.scrollHeight;
     let full='';
+    let firstTokenReceived = false;
     return {
         update(chunk){
+            if (!firstTokenReceived) {
+                firstTokenReceived = true;
+                hideTypingIndicator();
+            }
             full+=chunk;
             const html = typeof parseMarkdown === 'function' ? parseMarkdown(full) : escapeHtml(full).replace(/\n/g, '<br>');
             textDiv.innerHTML = linkify(html) + '<span class="streaming-cursor">|</span>';
@@ -1469,6 +1476,7 @@ function appendMessageStream(chatId) {
             if(chatContainer) chatContainer.scrollTop=chatContainer.scrollHeight;
         },
         finalize(sources = null, queryText = ''){
+            hideTypingIndicator();
             if (!full.trim()) full = 'The model returned an empty response. Check the selected provider and model, then try again.';
             const html=typeof parseMarkdown==='function'?parseMarkdown(full):escapeHtml(full);
             textDiv.innerHTML=linkify(html);
@@ -1619,7 +1627,7 @@ async function handleSend(textOverride=null) {
             } else {
                 url=`${BASE_URL}${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
                 body=JSON.stringify({system_instruction:{parts:[{text:sysPrompt}]},contents:[{parts}]});
-                const sm=appendMessageStream(lockedChatId); hideTypingIndicator();
+                const sm = appendMessageStream(lockedChatId, indicatorText);
                 const response=await fetch(url,{method:'POST',headers,body,signal:requestController.signal});
                 if(!response.ok){ let e=`API error ${response.status}`; try{const ed=await response.json();e=ed.error?.message||JSON.stringify(ed);}catch(_){} throw new Error(e); }
                 const reader=response.body.getReader(); const dec=new TextDecoder(); let buf='';
@@ -1646,7 +1654,7 @@ async function handleSend(textOverride=null) {
             url='https://openrouter.ai/api/v1/chat/completions';
             body=JSON.stringify({model,messages:[{role:'system',content:sysPrompt},{role:'user',content:contentArr}],stream:true});
             headers['Authorization']=`Bearer ${apiKey}`; headers['HTTP-Referer']='https://kenowa.extension'; headers['X-Title']='Kenowa Extension';
-            const sm=appendMessageStream(lockedChatId); hideTypingIndicator();
+            const sm = appendMessageStream(lockedChatId, indicatorText);
             const response=await fetch(url,{method:'POST',headers,body,signal:requestController.signal});
             if(!response.ok){ let e=`API error ${response.status}`; try{const ed=await response.json();e=ed.error?.message||JSON.stringify(ed);}catch(_){} throw new Error(e); }
             const reader=response.body.getReader(); const dec=new TextDecoder(); let buf='';
@@ -1682,8 +1690,7 @@ async function handleSend(textOverride=null) {
                 stream: true
             });
             headers['Authorization'] = `Bearer ${apiKey}`;
-            const sm = appendMessageStream(lockedChatId);
-            hideTypingIndicator();
+            const sm = appendMessageStream(lockedChatId, indicatorText);
             let response;
             try {
                 response = await fetch(url, { method: 'POST', headers, body, signal: requestController.signal });
@@ -1743,8 +1750,7 @@ async function handleSend(textOverride=null) {
                 stream: true
             });
             if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
-            const sm = appendMessageStream(lockedChatId);
-            hideTypingIndicator();
+            const sm = appendMessageStream(lockedChatId, indicatorText);
             let response;
             try {
                 response = await fetch(url, { method: 'POST', headers, body, signal: requestController.signal });

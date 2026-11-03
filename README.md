@@ -1,45 +1,90 @@
-# Kenowa AI Assistant
+# Kenowa AI Assistant ⚡
 
-Kenowa AI is a premium, powerful Chrome Extension that brings state-of-the-art AI models directly into your browser side panel. Designed with a strict focus on privacy, security, and a beautiful UI, Kenowa operates entirely locally—all API keys and chat histories are securely stored in your browser. No middleman servers, no data collection.
+> **The Private, Multi-Model AI Companion & Web Copilot for Your Browser**
 
-## ✨ Features
-
-- **Multi-Provider Support**: Seamlessly switch between Google Gemini, OpenRouter, and Ollama Cloud without leaving the page.
-- **Premium UI**: Enjoy a stunning, glassmorphic design featuring fluid micro-animations, tailored dark mode (`Obsidian`), and syntax-highlighted code blocks.
-- **Complete Privacy**: 100% offline persistence. All your API keys and chat histories are stored securely using `chrome.storage.local`.
-- **Export Chat**: Export your entire chat conversation to a clean, well-formatted Markdown (`.md`) file with one click.
-- **Image Generation**: Integrated image generation (via Gemini experimental models) with real-time UI previews.
-- **Exam / Focus Mode**: A specialized "Solve Question" capability that analyzes the current tab for content extraction.
-- **Security Hardened**: Built with a strict Content Security Policy (CSP), advanced DOM sanitization to prevent XSS, and disabled production logging to prevent data leakage.
-
-## 🚀 Installation (Unpacked)
-
-1. Download or clone this repository to your local machine.
-2. Open Google Chrome and navigate to `chrome://extensions/`.
-3. Enable **"Developer mode"** in the top right corner.
-4. Click **"Load unpacked"** in the top left.
-5. Select the `kenowa` folder on your machine.
-6. The extension is now installed! You can pin it to your browser toolbar for quick access.
-
-## ⚙️ Setup & Configuration
-
-1. Click the Kenowa icon in your toolbar, or use the keyboard shortcut (Default: `Ctrl+Shift+K` / `Cmd+Shift+K`) to open the Side Panel.
-2. Open the **Settings** menu via the gear icon in the bottom left.
-3. Select your preferred **AI Provider** (Gemini, OpenRouter, or Ollama).
-4. Paste your secure API Key. *(Keys are never sent to any middleman servers; they communicate directly with the LLM providers).*
-5. Select your desired AI model from the dropdown.
-6. Click **Save** and start chatting!
-
-## 🛠 Tech Stack
-
-- **HTML/CSS/JS**: Vanilla, lightweight web technologies optimized for browser performance.
-- **Manifest V3**: Built to modern Chrome extension security and performance standards.
-- **Local Storage API**: Fast, reliable, and secure data persistence.
-
-## 🔒 Security Guarantee
-
-- **No Tracking**: No telemetry, analytics, or user tracking of any kind.
-- **Strict CSP**: Inline scripts are blocked; connections are strictly limited to authorized LLM APIs.
+Kenowa AI is a high-performance Chrome Extension that integrates modern AI reasoning directly into your browser side panel. Built with an uncompromising commitment to **privacy, multi-model flexibility, and personal knowledge retrieval**, Kenowa runs entirely client-side. All API keys, chat histories, and personal reference files remain securely stored in your browser—zero middleman servers, zero telemetry.
 
 ---
-*Elevate your browsing with a smarter, safer AI companion.*
+
+## ✨ Core Superpowers
+
+- **🤖 Multi-Model Intelligence:** Switch seamlessly between:
+  - **Ollama Local** (`http://localhost:11434`): 100% private, offline, air-gapped AI models (LLaMA 3.2, DeepSeek R1, Qwen 2.5 Coder, Mistral) with automatic CORS bypass via `declarativeNetRequest`.
+  - **Ollama Cloud** (`https://ollama.com`): Scalable inference on massive open-weights models (Gemma 4 31B, Qwen3 Coder 480B, DeepSeek V3.1 671B, GPT-OSS 120B).
+  - **Google Gemini**: Lightning-fast responses with Gemini 2.0 Flash, Gemini 1.5 Pro, and experimental image generation.
+  - **OpenRouter**: Access hundreds of models with flexible API routing.
+- **📚 Personal Capsule RAG with Verifiable Citations:**
+  - Upload your course notes, textbooks, project specifications, or reference docs in Markdown (`.md`).
+  - **Accurate Attribution:** Intelligently scores and includes only sources that were **actually used** to formulate the answer. If no documents provide useful context, the sources section is cleanly omitted.
+  - Collapsible, clean UI displaying source names and exact passage snippets.
+- **📋 1-Click Copy with Interactive Checkmark Feedback:**
+  - Dedicated copy action with instant green checkmark and "Copied!" confirmation.
+  - Built-in fallback to ensure copying always succeeds even if the side panel loses active focus.
+  - Available on every AI response and syntax-highlighted code block.
+- **✨ Active Streaming Animation:**
+  - Real-time shimmering thinking indicator and pulsating cursor so you always know when the model is generating.
+- **🔄 Auto-Update & GitHub Release Checker:**
+  - Automatically queries the GitHub repository for new releases.
+  - Displays update alerts with direct 1-click download options and detailed changelogs.
+- **🔍 Instant On-Page Context & Exam / Solve Question Mode:**
+  - Scan current tab content, solve on-screen multiple-choice questions, and summarize long web pages in seconds.
+- **🎨 Obsidian Luxury Dark UI:**
+  - Minimalist glassmorphic design, Boxicons icon library, smooth animations, and responsive layout.
+
+---
+
+## 🚀 Quick Start & Installation
+
+### Option 1: Download from GitHub Releases
+1. Download the latest version ZIP: [**Kenowa v2.18 (ZIP)**](https://github.com/nadeemmhdm/kenowa-extesions/archive/refs/tags/v2.18.zip).
+2. Unzip the downloaded folder to a location of your choice.
+3. Open Google Chrome and navigate to `chrome://extensions/`.
+4. Toggle **"Developer mode"** in the top right corner.
+5. Click **"Load unpacked"** and select the unzipped `kenowa` folder.
+6. Press `Ctrl + Shift + K` (`Cmd + Shift + K` on macOS) to open the Kenowa Side Panel!
+
+### Option 2: Clone via Git
+```bash
+git clone https://github.com/nadeemmhdm/kenowa-extesions.git
+cd kenowa-extesions
+```
+Load the directory into `chrome://extensions/` as an unpacked extension.
+
+---
+
+## ⚙️ Configuration & Setup
+
+1. Open the Side Panel (`Ctrl + Shift + K`).
+2. Click the **Settings (⚙️)** gear icon in the bottom left.
+3. Choose your AI Provider:
+   - **Google Gemini**: Enter your free [Google AI Studio API Key](https://aistudio.google.com/).
+   - **OpenRouter**: Enter your [OpenRouter API Key](https://openrouter.ai/).
+   - **Ollama Cloud**: Enter your API key from [Ollama Cloud](https://ollama.com/).
+   - **Ollama Local**: Ensure Ollama is running (`ollama serve` or Ollama desktop app). No API key required!
+4. Click **Save** and start asking questions!
+
+---
+
+## ⌨️ Keyboard Shortcuts
+
+| Shortcut | Action |
+| :--- | :--- |
+| `Ctrl + Shift + K` / `Cmd + Shift + K` | Toggle Kenowa AI Side Panel |
+| `/` | Focus prompt input composer |
+| `Shift + Enter` | Insert new line in chat |
+| `Enter` | Send message |
+| `Esc` | Close modals and settings |
+
+---
+
+## 🔒 Security & Privacy Architecture
+
+- **No Remote Telemetry:** Kenowa does not send analytics, telemetry, or user queries to any intermediate server.
+- **Direct Origin Communication:** All API calls travel directly from your browser to the designated provider (Google, OpenRouter, or your local Ollama server).
+- **Strict Content Security Policy (CSP):** Manifest V3 compliant with restricted script origins and sanitized DOM output to eliminate XSS risks.
+
+---
+
+## 📄 License & Credits
+
+Distributed under the MIT License. Developed with ❤️ by [Nadeem Mhd](https://github.com/nadeemmhdm).

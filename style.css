@@ -3409,3 +3409,22 @@ body::after {
   background: rgba(16, 185, 129, 0.18) !important;
   color: var(--success, #10b981) !important;
 }
+
+
+/* ── Streaming Thinking Animation ────────────────────────────── */
+.streaming-thinking-placeholder {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 0.88rem;
+  user-select: none;
+}
+.streaming-thinking-placeholder .thinking-text {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.streaming-thinking-placeholder .thinking-ellipsis i {
+  width: 4px;
+  height: 4px;
+}
