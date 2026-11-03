@@ -14,9 +14,43 @@ function getOllamaBaseUrl() {
     const raw = localStorage.getItem('kenowa_ollama_url') || 'http://localhost:11434';
     return raw.trim().replace(/\/+$/, '') || 'http://localhost:11434';
 }
+const BUILTIN_MODELS = {
+    gemini: [
+        { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash ⚡' },
+        { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro 🧠' },
+        { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash Exp' }
+    ],
+    openrouter: [
+        { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Free' },
+        { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini' },
+        { id: 'deepseek/deepseek-r1', name: 'DeepSeek R1' },
+        { id: 'meta-llama/llama-3.1-8b-instruct:free', name: 'LLaMA 3.1 8B Free' },
+        { id: 'mistralai/mistral-7b-instruct:free', name: 'Mistral 7B Free' }
+    ],
+    ollama_local: [
+        { id: 'llama3.2:latest', name: 'LLaMA 3.2 (Local)' },
+        { id: 'llama3.1:8b', name: 'LLaMA 3.1 8B (Local)' },
+        { id: 'deepseek-r1:8b', name: 'DeepSeek R1 8B (Local)' },
+        { id: 'deepseek-r1:1.5b', name: 'DeepSeek R1 1.5B (Local)' },
+        { id: 'qwen2.5-coder:7b', name: 'Qwen 2.5 Coder 7B (Local)' },
+        { id: 'qwen2.5:7b', name: 'Qwen 2.5 7B (Local)' },
+        { id: 'mistral:latest', name: 'Mistral 7B (Local)' },
+        { id: 'phi3:latest', name: 'Phi 3 (Local)' }
+    ],
+    ollama_cloud: [
+        { id: 'gemma4:31b', name: 'Gemma 4 31B Cloud' },
+        { id: 'qwen3-coder:480b', name: 'Qwen3 Coder 480B Cloud' },
+        { id: 'deepseek-v3.1:671b', name: 'DeepSeek V3.1 671B Cloud' },
+        { id: 'gpt-oss:120b', name: 'GPT-OSS 120B Cloud' },
+        { id: 'llama3.3:70b', name: 'LLaMA 3.3 70B Cloud' },
+        { id: 'llama3.1:70b', name: 'LLaMA 3.1 70B Cloud' },
+        { id: 'deepseek-r1:671b', name: 'DeepSeek R1 671B Cloud' }
+    ]
+};
+
 function defaultModelForProvider(provider) {
     if (provider === 'openrouter') return 'openai/gpt-4o-mini';
-    if (provider === 'ollama_cloud' || provider === 'ollama') return 'gpt-oss:120b-cloud';
+    if (provider === 'ollama_cloud' || provider === 'ollama') return 'gemma4:31b';
     if (provider === 'ollama_local') return 'llama3.2:latest';
     return MODEL_QUICK;
 }
@@ -753,11 +787,15 @@ function renderProviderModels(provider, selectedModel) {
     if (!select) return;
     const modelToPreserve = String(selectedModel || getSavedModelForProvider(provider) || defaultModelForProvider(provider));
     select.replaceChildren();
+
     const group = document.createElement('optgroup');
     const labelName = provider === 'openrouter' ? 'OpenRouter' : provider === 'ollama_local' ? 'Ollama Local' : (provider === 'ollama_cloud' || provider === 'ollama') ? 'Ollama Cloud' : 'Google Gemini';
     group.label = `${labelName} · Available models`;
+
+    const modelsList = (cached?.models && cached.models.length > 0) ? cached.models : (BUILTIN_MODELS[provider] || BUILTIN_MODELS.ollama_cloud || []);
+
     let selectedFound = false;
-    (cached?.models || []).forEach(model => {
+    modelsList.forEach(model => {
         const option = document.createElement('option');
         option.value = model.id;
         option.textContent = model.name || model.id;
@@ -765,18 +803,23 @@ function renderProviderModels(provider, selectedModel) {
         group.appendChild(option);
     });
     if (group.childElementCount) select.appendChild(group);
+
     if (modelToPreserve && !selectedFound) {
         const preservedGroup = document.createElement('optgroup');
-        preservedGroup.label = cached?.models?.length ? 'Saved selection (not in refreshed provider list)' : 'Saved model selection';
+        preservedGroup.label = 'Custom / Saved selection';
         const preservedOption = document.createElement('option');
         preservedOption.value = modelToPreserve;
-        preservedOption.textContent = `${modelToPreserve} · saved selection`;
+        preservedOption.textContent = `${modelToPreserve} · current`;
         preservedOption.selected = true;
         preservedGroup.appendChild(preservedOption);
         select.insertBefore(preservedGroup, select.firstChild);
     }
     select.value = modelToPreserve;
-    if (!cached?.models?.length) { setModelsStatus('Using your saved model selection. Add a key or refresh to load this provider’s model list.', ''); return; }
+
+    if (!cached?.models?.length) {
+        setModelsStatus(`Using recommended ${labelName} models. Click ↻ to auto-discover models from your provider.`, '');
+        return;
+    }
     const age = Math.max(1, Math.round((Date.now() - cached.fetchedAt) / 60000));
     setModelsStatus(`${cached.models.length} models loaded · refreshed ${age < 60 ? `${age}m` : `${Math.round(age / 60)}h`} ago`, 'ready');
 }
@@ -1486,42 +1529,145 @@ async function handleSend(textOverride=null) {
             if(buf.trim().startsWith('data: ')){ const s=buf.trim().slice(6).trim(); if(s&&s!=='[DONE]') try{ const d=JSON.parse(s); const c=d.choices?.[0]?.delta?.content||''; if(c) sm.update(c); }catch(_){} }
             const aiMessage=sm.finalize(retrievedSources);
             if (!isExamMode && !isSQMode) setTimeout(() => getAISuggestions(text, aiMessage), 500);
-        } else if(provider==='ollama'){
-            const ollamaImages=imagesToSend.map(img=>img.split(',')[1]).filter(Boolean);
-            const ollamaBaseUrl=getOllamaBaseUrl();
-            url=`${ollamaBaseUrl}/api/chat`;
-            body=JSON.stringify({model,messages:[{role:'system',content:sysPrompt},{role:'user',content:text||"Analyze this image",...(ollamaImages.length?{images:ollamaImages}:{})}],stream:true});
-            if(apiKey) headers['Authorization']=`Bearer ${apiKey}`;
-            const sm=appendMessageStream(lockedChatId); hideTypingIndicator();
+        } else if (provider === 'ollama_cloud' || provider === 'ollama') {
+            if (!apiKey) {
+                appendMessage('ai', '⚙️ No Ollama Cloud API Key found. Open Settings and add your key from ollama.com.', [], false, false, lockedChatId);
+                hideTypingIndicator();
+                toggleSendButton(false);
+                return;
+            }
+            const ollamaImages = imagesToSend.map(img => img.split(',')[1]).filter(Boolean);
+            url = 'https://ollama.com/api/chat';
+            body = JSON.stringify({
+                model,
+                messages: [
+                    { role: 'system', content: sysPrompt },
+                    { role: 'user', content: text || "Analyze this image", ...(ollamaImages.length ? { images: ollamaImages } : {}) }
+                ],
+                stream: true
+            });
+            headers['Authorization'] = `Bearer ${apiKey}`;
+            const sm = appendMessageStream(lockedChatId);
+            hideTypingIndicator();
             let response;
             try {
-                response=await fetch(url,{method:'POST',headers,body,signal:requestController.signal});
-            } catch(netErr) {
-                if(requestController.signal.aborted) throw netErr;
-                throw new Error(`Could not connect to Ollama at ${ollamaBaseUrl}. Make sure Ollama is running ('ollama serve') on your machine.`);
+                response = await fetch(url, { method: 'POST', headers, body, signal: requestController.signal });
+            } catch (netErr) {
+                if (requestController.signal.aborted) throw netErr;
+                throw new Error(`Could not connect to Ollama Cloud at https://ollama.com/api/chat. Check your internet connection or API key. Detail: ${netErr.message}`);
             }
-            if(!response.ok){ let e=`Ollama error ${response.status}`; try{const ed=await response.json();e=ed.error?.message||ed.error||JSON.stringify(ed);}catch(_){} throw new Error(e); }
-            const reader=response.body.getReader(); const dec=new TextDecoder(); let buf='';
-            while(true){
-                const {done,value}=await reader.read(); if(done) break;
-                buf+=dec.decode(value,{stream:true});
-                const lines=buf.split('\n'); buf=lines.pop()||'';
-                for(const line of lines){
-                    if(!line.trim()) continue;
-                    try{ const d=JSON.parse(line); const c=d.message?.content||''; if(c) sm.update(c); }catch(_){}
+            if (!response.ok) {
+                let e = `Ollama Cloud error ${response.status}`;
+                try { const ed = await response.json(); e = ed.error || ed.message || JSON.stringify(ed); } catch (_) {}
+                throw new Error(e);
+            }
+            const reader = response.body.getReader();
+            const dec = new TextDecoder();
+            let buf = '';
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buf += dec.decode(value, { stream: true });
+                const lines = buf.split('\n');
+                buf = lines.pop() || '';
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try {
+                        const d = JSON.parse(line);
+                        if (d.error) throw new Error(d.error);
+                        const c = d.message?.content || '';
+                        if (c) sm.update(c);
+                    } catch (pe) {
+                        if (pe.message && !pe.message.includes('JSON')) throw pe;
+                    }
                 }
             }
-            buf+=dec.decode();
-            if(buf.trim()) try{ const d=JSON.parse(buf.trim()); const c=d.message?.content||''; if(c) sm.update(c); }catch(_){}
-            const aiMessage=sm.finalize(retrievedSources);
+            buf += dec.decode();
+            if (buf.trim()) {
+                try {
+                    const d = JSON.parse(buf.trim());
+                    if (d.error) throw new Error(d.error);
+                    const c = d.message?.content || '';
+                    if (c) sm.update(c);
+                } catch (pe) {
+                    if (pe.message && !pe.message.includes('JSON')) throw pe;
+                }
+            }
+            const aiMessage = sm.finalize(retrievedSources);
             if (!isExamMode && !isSQMode) setTimeout(() => getAISuggestions(text, aiMessage), 500);
+        } else if (provider === 'ollama_local') {
+            const ollamaImages = imagesToSend.map(img => img.split(',')[1]).filter(Boolean);
+            const ollamaBaseUrl = getOllamaBaseUrl();
+            url = `${ollamaBaseUrl}/api/chat`;
+            body = JSON.stringify({
+                model,
+                messages: [
+                    { role: 'system', content: sysPrompt },
+                    { role: 'user', content: text || "Analyze this image", ...(ollamaImages.length ? { images: ollamaImages } : {}) }
+                ],
+                stream: true
+            });
+            if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+            const sm = appendMessageStream(lockedChatId);
+            hideTypingIndicator();
+            let response;
+            try {
+                response = await fetch(url, { method: 'POST', headers, body, signal: requestController.signal });
+            } catch (netErr) {
+                if (requestController.signal.aborted) throw netErr;
+                throw new Error(`Could not connect to local Ollama at ${ollamaBaseUrl}. Make sure Ollama is running ('ollama serve' or open the Ollama app). Detail: ${netErr.message}`);
+            }
+            if (!response.ok) {
+                let e = `Ollama Local error ${response.status}`;
+                try { const ed = await response.json(); e = ed.error || ed.message || JSON.stringify(ed); } catch (_) {}
+                throw new Error(e);
+            }
+            const reader = response.body.getReader();
+            const dec = new TextDecoder();
+            let buf = '';
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buf += dec.decode(value, { stream: true });
+                const lines = buf.split('\n');
+                buf = lines.pop() || '';
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try {
+                        const d = JSON.parse(line);
+                        if (d.error) throw new Error(d.error);
+                        const c = d.message?.content || '';
+                        if (c) sm.update(c);
+                    } catch (pe) {
+                        if (pe.message && !pe.message.includes('JSON')) throw pe;
+                    }
+                }
+            }
+            buf += dec.decode();
+            if (buf.trim()) {
+                try {
+                    const d = JSON.parse(buf.trim());
+                    if (d.error) throw new Error(d.error);
+                    const c = d.message?.content || '';
+                    if (c) sm.update(c);
+                } catch (pe) {
+                    if (pe.message && !pe.message.includes('JSON')) throw pe;
+                }
+            }
+            const aiMessage = sm.finalize(retrievedSources);
+            if (!isExamMode && !isSQMode) setTimeout(() => getAISuggestions(text, aiMessage), 500);
+        } else {
+            appendMessage('ai', `⚠️ Unsupported provider: ${provider}. Open Settings and select Google Gemini, OpenRouter, Ollama Local, or Ollama Cloud.`, [], false, false, lockedChatId);
+            hideTypingIndicator();
+            toggleSendButton(false);
+            return;
         }
     } catch(err){
         hideTypingIndicator();
         if(requestTimedOut) appendMessage('ai','⚠️ The model did not respond within 90 seconds. Check the provider, API key, and selected model in Settings, then try again.',[],false,false,lockedChatId);
         else if(err.name==='AbortError'&&activeSelectionRequest) appendMessage('ai','⚠️ The selected-text request was cancelled before the model replied.',[],false,false,lockedChatId);
         else if(err.name!=='AbortError') appendMessage('ai',`⚠️ Error: ${sanitize(err.message)}`,[],false,false,lockedChatId);
-    } finally { clearTimeout(requestTimeoutId); toggleSendButton(false); if(abortController===requestController) abortController=null; }
+    } finally { clearTimeout(requestTimeoutId); toggleSendButton(false); hideTypingIndicator(); if(abortController===requestController) abortController=null; }
 }
 
 function checkImageGenLimit() { const l=localStorage.getItem('kenowa_last_image_gen'); if(!l) return true; const d=new Date(parseInt(l)),now=new Date(); return d.getDate()!==now.getDate()||d.getMonth()!==now.getMonth()||d.getFullYear()!==now.getFullYear(); }
@@ -1752,37 +1898,61 @@ async function syncSettingsToServer() {
 // ════════════════════════════════════════════════════════════════
 
 async function apiGenerateText(prompt) {
-    const isOk=await checkAccountStatus(); if(!isOk) return null;
+    const isOk = await checkAccountStatus(); if(!isOk) return null;
     const capsuleContext = getCapsuleReferenceContext(prompt, 18000);
     if (capsuleContext) prompt = `${prompt}\n\n${capsuleContext}`;
-    const {provider,model,apiKey}=getSelectedAIConfig();
-    let url,body,headers={'Content-Type':'application/json'};
-    if(!apiKey && provider !== 'ollama') throw new Error(`No ${provider} API key is saved. Add the key in Settings to use Solve Question and Exam Mode.`);
-    if(provider==='gemini'){ url=`${BASE_URL}${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`; body=JSON.stringify({contents:[{parts:[{text:prompt}]}]}); }
-    else if(provider==='openrouter'){ url='https://openrouter.ai/api/v1/chat/completions'; body=JSON.stringify({model,messages:[{role:'user',content:prompt}]}); headers['Authorization']=`Bearer ${apiKey}`; headers['HTTP-Referer']='https://kenowa.extension'; headers['X-Title']='Kenowa Extension'; }
-    else if(provider==='ollama'){
-        const ollamaBaseUrl = getOllamaBaseUrl();
-        url=`${ollamaBaseUrl}/api/chat`;
-        body=JSON.stringify({model,messages:[{role:'user',content:prompt}],stream:false});
-        if(apiKey) headers['Authorization']=`Bearer ${apiKey}`;
+    const { provider, model, apiKey } = getSelectedAIConfig();
+    let url, body, headers = { 'Content-Type': 'application/json' };
+    const isOllamaLocal = provider === 'ollama_local';
+    const isOllamaCloud = provider === 'ollama_cloud' || provider === 'ollama';
+
+    if (!apiKey && !isOllamaLocal) {
+        throw new Error(`No ${isOllamaCloud ? 'Ollama Cloud' : provider} API key is saved. Add the key in Settings to use Solve Question and Exam Mode.`);
     }
-    else throw new Error(`Unsupported AI provider: ${provider}`);
+
+    if (provider === 'gemini') {
+        url = `${BASE_URL}${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+        body = JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] });
+    } else if (provider === 'openrouter') {
+        url = 'https://openrouter.ai/api/v1/chat/completions';
+        body = JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] });
+        headers['Authorization'] = `Bearer ${apiKey}`;
+        headers['HTTP-Referer'] = 'https://kenowa.extension';
+        headers['X-Title'] = 'Kenowa Extension';
+    } else if (isOllamaCloud) {
+        url = 'https://ollama.com/api/chat';
+        body = JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], stream: false });
+        headers['Authorization'] = `Bearer ${apiKey}`;
+    } else if (isOllamaLocal) {
+        const ollamaBaseUrl = getOllamaBaseUrl();
+        url = `${ollamaBaseUrl}/api/chat`;
+        body = JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], stream: false });
+        if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+    } else {
+        throw new Error(`Unsupported AI provider: ${provider}`);
+    }
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 90000);
     try {
-        const res=await fetch(url,{method:'POST',headers,body,signal:controller.signal});
-        if(!res.ok) {
-            let detail=`HTTP ${res.status}`;
-            try { const errorData=await res.json(); detail=errorData?.error?.message||errorData?.error||detail; } catch(_) {}
+        const res = await fetch(url, { method: 'POST', headers, body, signal: controller.signal });
+        if (!res.ok) {
+            let detail = `HTTP ${res.status}`;
+            try { const errorData = await res.json(); detail = errorData?.error?.message || errorData?.error || errorData?.message || detail; } catch (_) {}
             throw new Error(`${provider} / ${model}: ${detail}`);
         }
-        const data=await res.json();
-        if(provider==='gemini') return data.candidates?.[0]?.content?.parts?.map(p=>p.text).join('').trim()||null;
-        if(provider==='openrouter') { const content=data.choices?.[0]?.message?.content; return (Array.isArray(content)?content.map(part=>part.text||'').join(''):String(content||'')).trim()||null; }
-        if(provider==='ollama') return data.message?.content?.trim()||null;
-    } catch(error){
-        if(controller.signal.aborted) throw new Error(`The selected ${provider} model (${model}) did not respond within 90 seconds.`);
-        if(provider==='ollama') throw new Error(`Could not connect to Ollama at ${getOllamaBaseUrl()}. Ensure Ollama is running ('ollama serve') and accessible.`);
+        const data = await res.json();
+        if (provider === 'gemini') return data.candidates?.[0]?.content?.parts?.map(p => p.text).join('').trim() || null;
+        if (provider === 'openrouter') {
+            const content = data.choices?.[0]?.message?.content;
+            return (Array.isArray(content) ? content.map(part => part.text || '').join('') : String(content || '')).trim() || null;
+        }
+        if (isOllamaCloud || isOllamaLocal) return data.message?.content?.trim() || null;
+        return null;
+    } catch (error) {
+        if (controller.signal.aborted) throw new Error(`The selected ${provider} model (${model}) did not respond within 90 seconds.`);
+        if (isOllamaCloud) throw new Error(`Could not connect to Ollama Cloud at https://ollama.com/api/chat. Detail: ${error.message}`);
+        if (isOllamaLocal) throw new Error(`Could not connect to local Ollama at ${getOllamaBaseUrl()}. Ensure Ollama is running ('ollama serve'). Detail: ${error.message}`);
         throw error;
     } finally { clearTimeout(timeoutId); }
 }
