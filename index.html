@@ -1,42 +1,95 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kenowa AI — Premium Web Copilot & Personal Study Assistant</title>
-  <meta name="description" content="Elite, private browser extension with multi-model AI (Gemini, OpenRouter, Ollama), personal Capsule RAG, collapsible source citations, and zero middleman telemetry.">
-  <meta name="keywords" content="Kenowa AI, Chrome Extension, Browser Copilot, Multi-Model AI, Capsule RAG, Study Assistant, DeepSeek, Gemini, Ollama">
+  <title>Kenowa AI — Private Multi-Model Web Copilot & Study Assistant</title>
 
-  <!-- OpenGraph / Social -->
+  <!-- Primary Meta Tags -->
+  <meta name="title" content="Kenowa AI — Private Multi-Model Web Copilot & Study Assistant">
+  <meta name="description" content="Experience elite AI in your Chrome sidebar. Powered by Google Gemini 2.0, OpenRouter, and Ollama (Local & Cloud) with personal Capsule RAG, verifiable source citations, and 100% local encryption.">
+  <meta name="keywords" content="Kenowa AI, Chrome Extension, Browser Copilot, Multi-Model AI, Local Ollama, Ollama Cloud, Capsule RAG, Verifiable Citations, DeepSeek R1, Gemini 2.0, Study Assistant">
+  <meta name="author" content="Nadeem Mhd">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://nadeemmhdm.github.io/kenowa-extesions/">
+
+  <!-- GEO & AEO Meta Tags -->
+  <meta name="geo.region" content="US">
+  <meta name="geo.placename" content="Global">
+  <meta name="rating" content="General">
+  <meta name="application-name" content="Kenowa AI Assistant">
+  <meta name="theme-color" content="#07070c">
+
+  <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Kenowa AI — Premium Web Copilot & Personal Study Assistant">
-  <meta property="og:description" content="Experience multi-model intelligence in your Chrome sidebar with personal document RAG, verified citations, and zero-telemetry local privacy.">
+  <meta property="og:url" content="https://nadeemmhdm.github.io/kenowa-extesions/">
+  <meta property="og:title" content="Kenowa AI — Private Multi-Model Web Copilot & Study Assistant">
+  <meta property="og:description" content="Private, multi-model AI assistant in your browser sidebar with personal document RAG, verified citations, and zero middleman telemetry.">
   <meta property="og:image" content="logo.png">
 
-  <!-- Google Fonts -->
+  <!-- Twitter / X -->
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="https://nadeemmhdm.github.io/kenowa-extesions/">
+  <meta property="twitter:title" content="Kenowa AI — Private Multi-Model Web Copilot & Study Assistant">
+  <meta property="twitter:description" content="Private, multi-model AI assistant in your browser sidebar with personal document RAG, verified citations, and zero middleman telemetry.">
+  <meta property="twitter:image" content="logo.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="logo.png">
+
+  <!-- Google Fonts: Syne & DM Sans & Fira Code -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fira+Code:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+
+  <!-- Boxicons CSS -->
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+
+  <!-- Schema.org JSON-LD Structured Data for SEO / AEO -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Kenowa AI Assistant",
+    "operatingSystem": "Google Chrome, Brave, Microsoft Edge, Arc",
+    "applicationCategory": "BrowserExtension",
+    "offers": {
+      "@type": "Offer",
+      "price": "0.00",
+      "priceCurrency": "USD"
+    },
+    "description": "Private, multi-model browser extension copilot with Capsule RAG, verified citations, Gemini 2.0, OpenRouter, and Ollama Local & Cloud support.",
+    "author": {
+      "@type": "Person",
+      "name": "Nadeem Mhd"
+    },
+    "softwareVersion": "2.18",
+    "downloadUrl": "https://github.com/nadeemmhdm/kenowa-extesions/archive/refs/tags/v2.18.zip"
+  }
+  </script>
 
   <style>
-    /* ============================================================
-       KENOWA AI — PRESTIGE OBSIDIAN DESIGN SYSTEM
-       ============================================================ */
+    /* -------------------------------------------------------------
+       OBSIDIAN LUXURY DESIGN SYSTEM (KENOWA AI)
+       ------------------------------------------------------------- */
     :root {
       --bg-dark: #07070c;
       --bg-surface: #0e0e17;
       --bg-card: rgba(18, 18, 28, 0.72);
-      --bg-card-hover: rgba(26, 26, 40, 0.85);
+      --bg-card-hover: rgba(28, 28, 44, 0.88);
       --bg-elevated: #161624;
-      --bg-pill: rgba(255, 255, 255, 0.05);
+      --bg-glass: rgba(255, 255, 255, 0.035);
 
       --accent: #4f8ef7;
-      --accent-glow: rgba(79, 142, 247, 0.4);
+      --accent-glow: rgba(79, 142, 247, 0.38);
       --accent-subtle: rgba(79, 142, 247, 0.12);
-      --accent-2: #7c6af7;
-      --accent-2-glow: rgba(124, 106, 247, 0.35);
-      --accent-emerald: #3ecf8e;
-      --accent-amber: #f5a623;
+      --accent-violet: #7c6af7;
+      --accent-violet-glow: rgba(124, 106, 247, 0.35);
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
 
       --text-main: #f3f4fd;
       --text-sub: #9496b8;
@@ -44,7 +97,7 @@
 
       --border: rgba(255, 255, 255, 0.08);
       --border-bright: rgba(79, 142, 247, 0.35);
-      --border-glow: rgba(124, 106, 247, 0.45);
+      --border-violet: rgba(124, 106, 247, 0.35);
 
       --radius-sm: 8px;
       --radius-md: 14px;
@@ -52,19 +105,12 @@
       --radius-xl: 32px;
       --radius-full: 9999px;
 
-      --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.4);
-      --shadow-md: 0 12px 36px rgba(0, 0, 0, 0.6);
-      --shadow-lg: 0 24px 70px rgba(0, 0, 0, 0.8);
-      --shadow-accent: 0 0 35px var(--accent-glow);
-
-      --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-      --ease-smooth: cubic-bezier(0.2, 0.8, 0.2, 1);
+      --shadow-card: 0 12px 40px rgba(0, 0, 0, 0.55);
+      --shadow-glow: 0 0 35px var(--accent-glow);
     }
 
-    *, *::before, *::after {
+    * {
       box-sizing: border-box;
-      margin: 0;
-      padding: 0;
     }
 
     html {
@@ -76,1266 +122,850 @@
       color: var(--text-main);
       font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
       font-size: 16px;
-      line-height: 1.6;
+      line-height: 1.65;
       overflow-x: hidden;
-      -webkit-font-smoothing: antialiased;
       background-image: 
-        radial-gradient(circle at 50% 0%, rgba(79, 142, 247, 0.08) 0%, transparent 60%),
-        radial-gradient(circle at 100% 30%, rgba(124, 106, 247, 0.05) 0%, transparent 50%);
+        radial-gradient(circle at 50% 0%, rgba(79, 142, 247, 0.09) 0%, transparent 55%),
+        radial-gradient(circle at 100% 30%, rgba(124, 106, 247, 0.06) 0%, transparent 45%),
+        radial-gradient(circle at 0% 70%, rgba(16, 185, 129, 0.04) 0%, transparent 40%);
+      background-attachment: fixed;
     }
 
-    /* Ambient noise overlay */
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.02'/%3E%3C/svg%3E");
-      pointer-events: none;
-      z-index: 999;
-      opacity: 0.6;
+    h1, h2, h3, h4, h5, h6, .brand-font {
+      font-family: 'Syne', sans-serif;
+      letter-spacing: -0.02em;
     }
 
-    /* Ambient fluid glow blobs */
-    .blob {
+    code, pre, .font-mono {
+      font-family: 'Fira Code', monospace;
+    }
+
+    a {
+      text-decoration: none;
+      color: var(--accent);
+      transition: all 0.2s ease;
+    }
+    a:hover {
+      color: #79aeff;
+    }
+
+    /* Ambient Glow Background Orbs */
+    .glow-orb {
       position: absolute;
       border-radius: 50%;
-      filter: blur(130px);
+      filter: blur(120px);
       pointer-events: none;
       z-index: 0;
-      opacity: 0.38;
-      mix-blend-mode: screen;
     }
-    .blob-1 {
+    .glow-orb-1 {
       top: -100px;
-      left: 15%;
-      width: 550px;
-      height: 550px;
-      background: radial-gradient(circle, var(--accent) 0%, rgba(79, 142, 247, 0.1) 60%, transparent 80%);
+      left: 50%;
+      transform: translateX(-50%);
+      width: 650px;
+      height: 450px;
+      background: radial-gradient(circle, var(--accent-glow), transparent 70%);
     }
-    .blob-2 {
-      top: 38%;
-      right: 5%;
-      width: 500px;
-      height: 500px;
-      background: radial-gradient(circle, var(--accent-2) 0%, rgba(124, 106, 247, 0.15) 60%, transparent 80%);
-    }
-    .blob-3 {
-      bottom: 15%;
-      left: 10%;
-      width: 600px;
-      height: 600px;
-      background: radial-gradient(circle, #2563eb 0%, rgba(37, 99, 235, 0.1) 60%, transparent 80%);
+    .glow-orb-2 {
+      top: 35%;
+      right: -100px;
+      width: 480px;
+      height: 480px;
+      background: radial-gradient(circle, var(--accent-violet-glow), transparent 70%);
     }
 
-    /* Typography helpers */
-    .font-syne {
-      font-family: 'Syne', sans-serif;
-    }
-    .text-gradient {
-      background: linear-gradient(135deg, #ffffff 15%, #93c5fd 65%, #c4b5fd 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    .text-gradient-accent {
-      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .container {
-      max-width: 1240px;
-      margin: 0 auto;
-      padding: 0 24px;
-      position: relative;
-      z-index: 2;
-    }
-
-    /* ── Sticky Navbar ────────────────────────────────────────── */
-    header.site-header {
+    /* Sticky Navbar */
+    .site-nav {
       position: sticky;
       top: 0;
-      z-index: 100;
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
+      z-index: 1000;
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
       background: rgba(7, 7, 12, 0.82);
       border-bottom: 1px solid var(--border);
-      transition: all 0.3s var(--ease-smooth);
+      transition: all 0.3s ease;
     }
-    .nav-wrap {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 14px 0;
+    .site-nav.scrolled {
+      border-bottom-color: var(--border-bright);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.65);
     }
-    .brand-link {
+    .nav-brand {
       display: flex;
       align-items: center;
       gap: 12px;
-      text-decoration: none;
-      color: var(--text-main);
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #fff;
     }
-    .brand-logo-img {
-      width: 34px;
-      height: 34px;
-      object-fit: contain;
-      filter: drop-shadow(0 0 12px var(--accent-glow));
+    .nav-brand img {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
     }
-    .brand-title {
-      font-family: 'Syne', sans-serif;
-      font-weight: 800;
-      font-size: 1.3rem;
-      letter-spacing: -0.02em;
-    }
-    .brand-version-tag {
-      font-family: 'Fira Code', monospace;
-      font-size: 0.68rem;
-      padding: 2px 7px;
-      border-radius: 6px;
-      background: var(--accent-subtle);
-      border: 1px solid var(--border-bright);
-      color: var(--accent);
-      font-weight: 600;
-    }
-
-    .nav-menu {
-      display: flex;
-      align-items: center;
-      gap: 30px;
-    }
-    .nav-item {
-      color: var(--text-sub);
-      text-decoration: none;
-      font-size: 0.92rem;
+    .nav-link-custom {
+      color: var(--text-sub) !important;
       font-weight: 500;
-      transition: color 0.2s, transform 0.2s;
-      position: relative;
+      font-size: 0.92rem;
+      padding: 8px 16px !important;
+      border-radius: var(--radius-full);
+      transition: all 0.2s ease;
     }
-    .nav-item:hover {
-      color: var(--text-main);
-    }
-    .nav-actions {
-      display: flex;
-      align-items: center;
-      gap: 14px;
+    .nav-link-custom:hover {
+      color: #fff !important;
+      background: var(--bg-glass);
     }
 
     /* Buttons */
-    .btn {
+    .btn-kenowa-primary {
+      background: linear-gradient(135deg, #4f8ef7, #7c6af7);
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.95rem;
+      padding: 11px 24px;
+      border-radius: var(--radius-full);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 4px 20px var(--accent-glow);
+      transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
       display: inline-flex;
       align-items: center;
-      justify-content: center;
-      gap: 9px;
+      gap: 8px;
+    }
+    .btn-kenowa-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 28px rgba(79, 142, 247, 0.55);
+      color: #fff;
+    }
+    .btn-kenowa-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-main);
+      font-weight: 600;
+      font-size: 0.95rem;
       padding: 11px 22px;
       border-radius: var(--radius-full);
-      font-size: 0.92rem;
-      font-weight: 600;
-      font-family: 'DM Sans', sans-serif;
-      text-decoration: none;
-      cursor: pointer;
-      transition: all 0.22s var(--ease-spring);
-      border: none;
-      white-space: nowrap;
-    }
-    .btn-primary {
-      background: linear-gradient(135deg, var(--accent), var(--accent-2));
-      color: #fff;
-      box-shadow: 0 4px 20px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-    }
-    .btn-primary:hover {
-      transform: translateY(-2px) scale(1.02);
-      box-shadow: 0 8px 30px var(--accent-glow), 0 0 0 1px rgba(79, 142, 247, 0.3);
-    }
-    .btn-primary:active {
-      transform: scale(0.98);
-    }
-    .btn-glass {
-      background: rgba(255, 255, 255, 0.05);
       border: 1px solid var(--border);
-      color: var(--text-main);
-      backdrop-filter: blur(10px);
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
     }
-    .btn-glass:hover {
-      background: rgba(255, 255, 255, 0.09);
-      border-color: var(--border-bright);
+    .btn-kenowa-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.25);
       transform: translateY(-2px);
     }
 
-    /* ── Hero Section ─────────────────────────────────────────── */
-    section.hero-section {
-      padding: 70px 0 90px;
-      text-align: center;
-      position: relative;
-    }
-    .hero-eyebrow {
+    /* Badges & Pills */
+    .hero-badge {
       display: inline-flex;
       align-items: center;
-      gap: 9px;
-      padding: 7px 16px;
+      gap: 8px;
+      padding: 6px 16px;
+      background: rgba(79, 142, 247, 0.1);
+      border: 1px solid rgba(79, 142, 247, 0.3);
       border-radius: var(--radius-full);
-      background: rgba(79, 142, 247, 0.09);
-      border: 1px solid var(--border-bright);
-      color: var(--accent);
-      font-size: 0.8rem;
+      font-size: 0.82rem;
       font-weight: 600;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
+      color: var(--accent);
       margin-bottom: 24px;
-      backdrop-filter: blur(8px);
     }
-    .eyebrow-dot {
+    .hero-badge i {
+      font-size: 1rem;
+    }
+    .status-dot {
       width: 7px;
       height: 7px;
-      border-radius: 50%;
       background: var(--accent-emerald);
-      box-shadow: 0 0 8px var(--accent-emerald);
-    }
-
-    .hero-heading {
-      font-family: 'Syne', sans-serif;
-      font-size: clamp(2.5rem, 6.2vw, 4.4rem);
-      font-weight: 800;
-      line-height: 1.1;
-      letter-spacing: -0.035em;
-      max-width: 980px;
-      margin: 0 auto 24px;
-    }
-
-    .hero-lead {
-      color: var(--text-sub);
-      font-size: clamp(1.05rem, 2vw, 1.25rem);
-      max-width: 760px;
-      margin: 0 auto 38px;
-      line-height: 1.65;
-    }
-
-    .hero-cta-group {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      flex-wrap: wrap;
-      margin-bottom: 50px;
-    }
-
-    /* Hero Trust Metrics Grid */
-    .hero-metrics {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 18px;
-      max-width: 900px;
-      margin: 0 auto 60px;
-      padding: 16px 20px;
-      border-radius: var(--radius-lg);
-      background: rgba(22, 22, 32, 0.5);
-      border: 1px solid var(--border);
-      backdrop-filter: blur(12px);
-    }
-    .metric-card {
-      text-align: center;
-    }
-    .metric-value {
-      font-family: 'Syne', sans-serif;
-      font-size: 1.45rem;
-      font-weight: 800;
-      color: var(--text-main);
-    }
-    .metric-label {
-      font-size: 0.78rem;
-      color: var(--text-sub);
-      margin-top: 2px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    /* ── Hero Mockup Showcase ─────────────────────────────────── */
-    .showcase-stage {
-      max-width: 1040px;
-      margin: 0 auto;
-      border-radius: var(--radius-xl);
-      padding: 10px;
-      background: linear-gradient(150deg, rgba(79, 142, 247, 0.28), rgba(124, 106, 247, 0.15) 45%, rgba(255, 255, 255, 0.04));
-      border: 1px solid var(--border-bright);
-      box-shadow: 0 30px 100px rgba(0, 0, 0, 0.85), var(--shadow-accent);
-    }
-    .showcase-canvas {
-      border-radius: calc(var(--radius-xl) - 8px);
-      background: #090910;
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      padding: 24px;
-      display: grid;
-      grid-template-columns: 1fr 370px;
-      gap: 24px;
-      text-align: left;
-    }
-    @media (max-width: 920px) {
-      .showcase-canvas {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    /* Browser Mockup Half */
-    .browser-mock {
-      background: #11111a;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
-    .browser-top {
-      background: rgba(0, 0, 0, 0.35);
-      border-bottom: 1px solid var(--border);
-      padding: 12px 16px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .browser-dots {
-      display: flex;
-      gap: 6px;
-    }
-    .b-dot {
-      width: 10px;
-      height: 10px;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.15);
+      box-shadow: 0 0 10px var(--accent-emerald);
+      animation: pulseDot 2s infinite;
     }
-    .b-dot.red { background: #ef4444; }
-    .b-dot.yellow { background: #f59e0b; }
-    .b-dot.green { background: #10b981; }
-    .browser-bar {
-      flex: 1;
-      background: rgba(255, 255, 255, 0.04);
-      padding: 5px 12px;
-      border-radius: 6px;
-      font-family: 'Fira Code', monospace;
-      font-size: 0.74rem;
-      color: var(--text-sub);
-    }
-    .browser-body {
-      padding: 24px;
-      color: var(--text-sub);
-      font-size: 0.9rem;
-      line-height: 1.7;
-    }
-    .browser-highlight {
-      background: rgba(79, 142, 247, 0.22);
-      color: #93c5fd;
-      padding: 2px 5px;
-      border-radius: 4px;
-      border-bottom: 2px solid var(--accent);
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.3); }
     }
 
-    /* Sidepanel Mockup Half */
-    .sidepanel-mock {
-      background: var(--bg-surface);
-      border: 1px solid var(--border-bright);
-      border-radius: var(--radius-md);
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
-    }
-    .mock-header {
-      padding: 12px 14px;
-      background: rgba(10, 10, 15, 0.85);
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .mock-header-brand {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-family: 'Syne', sans-serif;
-      font-weight: 700;
-      font-size: 0.88rem;
-    }
-    .mock-body {
-      padding: 16px;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .mock-user-msg {
-      align-self: flex-end;
-      background: rgba(79, 142, 247, 0.16);
-      border: 1px solid rgba(79, 142, 247, 0.32);
-      padding: 10px 14px;
-      border-radius: 18px 18px 4px 18px;
-      font-size: 0.84rem;
-      max-width: 88%;
-      color: var(--text-main);
-    }
-    .mock-ai-msg {
-      align-self: flex-start;
-      color: #dbe0f5;
-      font-size: 0.84rem;
-      line-height: 1.55;
-      width: 100%;
-    }
-    
-    /* Interactive Collapsible Source Pill inside Mockup */
-    .mock-source-collapsible {
-      margin-top: 8px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      background: rgba(22, 22, 31, 0.65);
-      overflow: hidden;
-    }
-    .mock-source-toggle {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      padding: 7px 11px;
-      background: transparent;
-      border: none;
-      color: var(--text-sub);
-      font-size: 0.76rem;
-      font-weight: 600;
-      cursor: pointer;
-      text-align: left;
-    }
-    .mock-source-toggle:hover {
-      color: var(--text-main);
-    }
-    .mock-source-detail {
-      border-top: 1px solid var(--border);
-      padding: 8px 10px;
-      background: rgba(10, 10, 15, 0.5);
-      font-size: 0.72rem;
-      color: #94a3b8;
-      line-height: 1.45;
-    }
-
-    .mock-suggestions-list {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 6px;
-      margin-top: 8px;
-    }
-    .mock-chip {
+    /* Cards & Glassmorphism */
+    .glass-card {
       background: var(--bg-card);
-      border: 1px solid var(--border);
-      color: var(--text-sub);
-      padding: 6px 12px;
-      border-radius: 20px;
-      font-size: 0.74rem;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .mock-chip:hover {
-      border-color: var(--border-bright);
-      color: var(--text-main);
-    }
-
-    .mock-input-area {
-      margin-top: auto;
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 10px 14px;
-      background: #141420;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }
-    .mock-send-btn {
-      width: 34px;
-      height: 34px;
-      border-radius: 11px;
-      background: linear-gradient(135deg, var(--accent), var(--accent-2));
-      display: grid;
-      place-items: center;
-      color: #fff;
-      flex-shrink: 0;
-    }
-
-    /* ── Audience Segment Tabs ────────────────────────────────── */
-    section.audience-section {
-      padding: 100px 0 80px;
-      border-top: 1px solid var(--border);
-      background: linear-gradient(180deg, rgba(14, 14, 23, 0.4) 0%, transparent 100%);
-    }
-    .section-header {
-      text-align: center;
-      max-width: 760px;
-      margin: 0 auto 50px;
-    }
-    .section-kicker {
-      color: var(--accent);
-      font-size: 0.8rem;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      margin-bottom: 12px;
-    }
-    .section-heading {
-      font-family: 'Syne', sans-serif;
-      font-size: clamp(2rem, 4vw, 3rem);
-      font-weight: 800;
-      letter-spacing: -0.025em;
-      line-height: 1.15;
-      margin-bottom: 16px;
-    }
-    .section-sub {
-      color: var(--text-sub);
-      font-size: 1.05rem;
-    }
-
-    /* Tabs Controller */
-    .audience-tab-pills {
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-      margin-bottom: 45px;
-      flex-wrap: wrap;
-    }
-    .tab-pill {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid var(--border);
-      color: var(--text-sub);
-      padding: 10px 22px;
-      border-radius: var(--radius-full);
-      font-weight: 600;
-      font-size: 0.9rem;
-      cursor: pointer;
-      transition: all 0.22s var(--ease-spring);
-    }
-    .tab-pill.active {
-      background: linear-gradient(135deg, var(--accent), var(--accent-2));
-      color: #fff;
-      border-color: rgba(255, 255, 255, 0.2);
-      box-shadow: 0 4px 20px var(--accent-glow);
-    }
-
-    .audience-card-deck {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 24px;
-    }
-    @media (max-width: 900px) {
-      .audience-card-deck {
-        grid-template-columns: 1fr;
-      }
-    }
-    .audience-card {
-      background: var(--bg-card);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
-      padding: 32px;
-      transition: all 0.3s var(--ease-smooth);
+      padding: 28px;
+      box-shadow: var(--shadow-card);
+      transition: all 0.3s ease;
       position: relative;
       overflow: hidden;
     }
-    .audience-card:hover {
-      transform: translateY(-6px);
-      border-color: var(--border-bright);
-      box-shadow: 0 16px 45px rgba(0, 0, 0, 0.5), 0 0 30px var(--accent-glow);
-    }
-    .card-icon-bubble {
-      width: 48px;
-      height: 48px;
-      border-radius: 14px;
-      background: rgba(79, 142, 247, 0.12);
-      border: 1px solid var(--border-bright);
-      display: grid;
-      place-items: center;
-      color: var(--accent);
-      margin-bottom: 22px;
-      font-size: 1.3rem;
-    }
-    .card-title {
-      font-family: 'Syne', sans-serif;
-      font-size: 1.3rem;
-      font-weight: 700;
-      margin-bottom: 12px;
-      color: var(--text-main);
-    }
-    .card-text {
-      color: var(--text-sub);
-      font-size: 0.93rem;
-      line-height: 1.6;
-      margin-bottom: 20px;
-    }
-    .card-feature-list {
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .card-feature-list li {
-      font-size: 0.85rem;
-      color: #cbd5e1;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .card-feature-list li svg {
-      color: var(--accent-emerald);
-      flex-shrink: 0;
-    }
-
-    /* ── Features Deep Dive ───────────────────────────────────── */
-    section.features-section {
-      padding: 100px 0;
-    }
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-      gap: 26px;
-    }
-    .feat-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      padding: 34px;
-      transition: all 0.28s var(--ease-smooth);
-      position: relative;
-    }
-    .feat-card:hover {
+    .glass-card:hover {
       border-color: var(--border-bright);
       background: var(--bg-card-hover);
-      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5), 0 0 25px var(--accent-glow);
       transform: translateY(-4px);
     }
-    .feat-badge {
-      display: inline-block;
-      font-family: 'Fira Code', monospace;
-      font-size: 0.7rem;
-      color: var(--accent);
-      background: var(--accent-subtle);
-      border: 1px solid var(--border-bright);
-      padding: 3px 8px;
-      border-radius: 6px;
-      margin-bottom: 16px;
+    .glass-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
     }
 
-    /* ── Comparison Matrix ────────────────────────────────────── */
-    section.compare-section {
-      padding: 100px 0;
-      border-top: 1px solid var(--border);
-    }
-    .compare-table-wrap {
-      max-width: 960px;
-      margin: 0 auto;
-      border-radius: var(--radius-lg);
-      border: 1px solid var(--border);
-      background: rgba(14, 14, 23, 0.65);
-      overflow-x: auto;
-      backdrop-filter: blur(14px);
-      box-shadow: var(--shadow-md);
-    }
-    .compare-table {
-      width: 100%;
-      border-collapse: collapse;
-      text-align: left;
-      font-size: 0.92rem;
-    }
-    .compare-table th,
-    .compare-table td {
-      padding: 18px 22px;
-      border-bottom: 1px solid var(--border);
-    }
-    .compare-table th {
-      background: rgba(22, 22, 34, 0.85);
-      font-family: 'Syne', sans-serif;
-      font-weight: 700;
-      color: var(--text-main);
-      font-size: 0.95rem;
-    }
-    .compare-table th.highlight-col {
-      color: var(--accent);
-      background: rgba(79, 142, 247, 0.1);
-      border-bottom-color: var(--accent);
-    }
-    .compare-table td.highlight-col {
-      background: rgba(79, 142, 247, 0.04);
-      font-weight: 600;
-      color: #fff;
-    }
-    .check-yes {
-      color: var(--accent-emerald);
-      font-weight: 700;
-    }
-    .check-no {
-      color: #ef4444;
-    }
-
-    /* ── Testimonials ─────────────────────────────────────────── */
-    section.testimonials-section {
-      padding: 90px 0;
-    }
-    .testimonials-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 24px;
-    }
-    .testi-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      padding: 30px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-    .testi-quote {
-      color: #cbd5e1;
-      font-size: 0.95rem;
-      line-height: 1.65;
-      margin-bottom: 24px;
-      font-style: italic;
-    }
-    .testi-author {
+    /* Feature Icon Box */
+    .feature-icon-box {
+      width: 52px;
+      height: 52px;
+      border-radius: var(--radius-md);
       display: flex;
       align-items: center;
-      gap: 12px;
+      justify-content: center;
+      font-size: 1.6rem;
+      margin-bottom: 20px;
     }
-    .author-avatar {
-      width: 42px;
-      height: 42px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, var(--accent), var(--accent-2));
-      display: grid;
-      place-items: center;
-      font-weight: 700;
-      color: #fff;
-      font-size: 0.9rem;
-    }
-    .author-name {
-      font-weight: 700;
-      color: #fff;
-      font-size: 0.92rem;
-    }
-    .author-role {
-      font-size: 0.78rem;
-      color: var(--text-sub);
-    }
+    .icon-blue { background: rgba(79, 142, 247, 0.12); color: var(--accent); border: 1px solid rgba(79, 142, 247, 0.25); }
+    .icon-violet { background: rgba(124, 106, 247, 0.12); color: var(--accent-violet); border: 1px solid rgba(124, 106, 247, 0.25); }
+    .icon-emerald { background: rgba(16, 185, 129, 0.12); color: var(--accent-emerald); border: 1px solid rgba(16, 185, 129, 0.25); }
+    .icon-amber { background: rgba(245, 158, 11, 0.12); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.25); }
 
-    /* ── FAQ Section ──────────────────────────────────────────── */
-    section.faq-section {
-      padding: 90px 0;
-      border-top: 1px solid var(--border);
-    }
-    .faq-accordion {
-      max-width: 820px;
+    /* Interactive Extension Mockup */
+    .mockup-window {
+      background: #0d0d16;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: var(--radius-xl);
+      box-shadow: 0 25px 70px rgba(0, 0, 0, 0.8), 0 0 40px rgba(79, 142, 247, 0.15);
+      overflow: hidden;
+      max-width: 480px;
       margin: 0 auto;
+      text-align: left;
+    }
+    .mockup-header {
+      background: #13131f;
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+    .mockup-body {
+      padding: 18px;
       display: flex;
       flex-direction: column;
       gap: 14px;
+      font-size: 0.88rem;
     }
-    .faq-item {
-      background: var(--bg-card);
+    .mock-msg-user {
+      align-self: flex-end;
+      background: linear-gradient(135deg, #4f8ef7, #3b74d4);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 14px 14px 2px 14px;
+      max-width: 82%;
+      font-size: 0.86rem;
+    }
+    .mock-msg-ai {
+      align-self: flex-start;
+      background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-      overflow: hidden;
-      transition: border-color 0.2s;
+      color: var(--text-main);
+      padding: 14px;
+      border-radius: 14px 14px 14px 2px;
+      max-width: 95%;
+      position: relative;
     }
-    .faq-item:hover {
-      border-color: var(--border-bright);
+    .mock-sources-drawer {
+      margin-top: 10px;
+      padding: 8px 10px;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 8px;
     }
-    .faq-question {
-      width: 100%;
-      background: none;
-      border: none;
-      padding: 18px 22px;
+    .mock-sources-trigger {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      color: var(--text-main);
-      font-family: 'DM Sans', sans-serif;
-      font-size: 1rem;
+      font-size: 0.74rem;
       font-weight: 600;
-      text-align: left;
+      color: var(--accent-amber);
       cursor: pointer;
     }
-    .faq-chevron {
-      transition: transform 0.25s var(--ease-spring);
-      color: var(--accent);
-    }
-    .faq-item.active .faq-chevron {
-      transform: rotate(180deg);
-    }
-    .faq-answer {
-      padding: 0 22px 20px;
+    .mock-sources-content {
+      margin-top: 8px;
+      font-size: 0.73rem;
       color: var(--text-sub);
-      font-size: 0.92rem;
-      line-height: 1.6;
-      display: none;
+      line-height: 1.45;
+      border-top: 1px dashed rgba(255, 255, 255, 0.08);
+      padding-top: 6px;
     }
-    .faq-item.active .faq-answer {
-      display: block;
-      animation: fadeIn 0.25s ease;
+    .mock-chips-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .mock-chip {
+      background: rgba(79, 142, 247, 0.08);
+      border: 1px solid rgba(79, 142, 247, 0.22);
+      color: var(--text-sub);
+      font-size: 0.72rem;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .mock-chip:hover {
+      background: var(--accent);
+      color: #fff;
+    }
+    .mock-input-row {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--text-muted);
+      font-size: 0.8rem;
     }
 
-    /* ── Final Conversion CTA ─────────────────────────────────── */
-    section.final-cta-section {
-      padding: 110px 0;
+    /* Target Audience Cards */
+    .audience-card {
+      border-top: 3px solid transparent;
+      height: 100%;
     }
-    .final-cta-banner {
-      border-radius: var(--radius-xl);
-      padding: 70px 30px;
-      text-align: center;
-      background: linear-gradient(135deg, rgba(79, 142, 247, 0.16), rgba(124, 106, 247, 0.14) 50%, rgba(10, 10, 16, 0.8));
-      border: 1px solid var(--border-bright);
-      box-shadow: 0 20px 80px rgba(0, 0, 0, 0.7), 0 0 50px var(--accent-glow);
-      position: relative;
+    .audience-card.student { border-top-color: var(--accent); }
+    .audience-card.dev { border-top-color: var(--accent-violet); }
+    .audience-card.writer { border-top-color: var(--accent-emerald); }
+
+    /* Comparison Table */
+    .table-dark-custom {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
       overflow: hidden;
     }
-    .final-cta-title {
+    .table-dark-custom th {
+      background: #12121e;
+      color: var(--text-main);
+      padding: 16px 20px;
       font-family: 'Syne', sans-serif;
-      font-size: clamp(2.2rem, 5vw, 3.4rem);
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      line-height: 1.15;
-      margin-bottom: 20px;
+      font-weight: 700;
+      border-bottom: 1px solid var(--border);
     }
-    .final-cta-sub {
+    .table-dark-custom td {
+      background: rgba(18, 18, 28, 0.5);
       color: var(--text-sub);
-      font-size: 1.1rem;
-      max-width: 620px;
-      margin: 0 auto 36px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+      font-size: 0.92rem;
+    }
+    .table-dark-custom tr:hover td {
+      background: rgba(28, 28, 44, 0.65);
+      color: var(--text-main);
+    }
+    .check-yes {
+      color: var(--accent-emerald);
+      font-size: 1.25rem;
+    }
+    .check-no {
+      color: var(--text-muted);
+      font-size: 1.25rem;
     }
 
-    /* ── Site Footer ──────────────────────────────────────────── */
-    footer.site-footer {
+    /* Step Stepper Cards */
+    .step-badge {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent-violet));
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-family: 'Syne', sans-serif;
+      font-size: 1.05rem;
+      box-shadow: 0 0 16px var(--accent-glow);
+      flex-shrink: 0;
+    }
+
+    /* FAQ Accordion */
+    .accordion-custom .accordion-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md) !important;
+      margin-bottom: 12px;
+      overflow: hidden;
+      backdrop-filter: blur(12px);
+    }
+    .accordion-custom .accordion-button {
+      background: transparent;
+      color: var(--text-main);
+      font-weight: 600;
+      font-size: 0.98rem;
+      padding: 18px 22px;
+      box-shadow: none !important;
+    }
+    .accordion-custom .accordion-button:not(.collapsed) {
+      background: rgba(79, 142, 247, 0.08);
+      color: var(--accent);
+      border-bottom: 1px solid var(--border);
+    }
+    .accordion-custom .accordion-body {
+      color: var(--text-sub);
+      font-size: 0.92rem;
+      padding: 18px 22px;
+      line-height: 1.65;
+    }
+
+    /* Footer */
+    .site-footer {
       border-top: 1px solid var(--border);
-      padding: 70px 0 40px;
-      background: #050509;
+      padding: 60px 0 30px;
+      background: rgba(5, 5, 8, 0.95);
       color: var(--text-sub);
       font-size: 0.9rem;
     }
-    .footer-grid {
-      display: grid;
-      grid-template-columns: 2fr 1fr 1fr 1fr;
-      gap: 40px;
-      margin-bottom: 50px;
-    }
-    @media (max-width: 850px) {
-      .footer-grid {
-        grid-template-columns: 1fr 1fr;
-      }
-    }
-    @media (max-width: 500px) {
-      .footer-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-    .footer-col-title {
-      font-family: 'Syne', sans-serif;
-      font-size: 0.95rem;
-      font-weight: 700;
+    .footer-heading {
       color: #fff;
-      margin-bottom: 18px;
+      font-size: 0.92rem;
+      font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.05em;
+      margin-bottom: 18px;
+      font-family: 'Syne', sans-serif;
     }
-    .footer-links {
+    .footer-link-list {
       list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
+      padding: 0;
+      margin: 0;
     }
-    .footer-links a {
+    .footer-link-list li {
+      margin-bottom: 10px;
+    }
+    .footer-link-list a {
       color: var(--text-sub);
-      text-decoration: none;
-      transition: color 0.2s;
+      transition: color 0.2s ease;
     }
-    .footer-links a:hover {
+    .footer-link-list a:hover {
       color: var(--accent);
     }
-    .footer-bottom {
-      border-top: 1px solid var(--border);
-      padding-top: 30px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 16px;
-      font-size: 0.82rem;
-    }
 
-    /* Animation keyframes */
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: translateY(0); }
+    /* Micro-interactions & animations */
+    .hover-lift {
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+    .hover-lift:hover {
+      transform: translateY(-4px);
     }
   </style>
 </head>
 <body>
 
-  <!-- Ambient Fluid Light Blobs -->
-  <div class="blob blob-1"></div>
-  <div class="blob blob-2"></div>
-  <div class="blob blob-3"></div>
+  <!-- Background Orbs -->
+  <div class="glow-orb glow-orb-1"></div>
+  <div class="glow-orb glow-orb-2"></div>
 
-  <!-- ── Sticky Navigation ────────────────────────────────────── -->
-  <header class="site-header">
-    <div class="container nav-wrap">
-      <a href="#" class="brand-link">
-        <img src="logo.png" alt="Kenowa AI Logo" class="brand-logo-img">
-        <span class="brand-title">Kenowa AI</span>
-        <span class="brand-version-tag">v2.18</span>
+  <!-- ───────────────────────────────────────────
+       STICKY NAVBAR
+       ─────────────────────────────────────────── -->
+  <nav class="navbar navbar-expand-lg site-nav py-3" id="navbar">
+    <div class="container">
+      <a class="nav-brand" href="#">
+        <img src="logo.png" alt="Kenowa AI Logo">
+        <span>Kenowa AI</span>
       </a>
 
-      <nav class="nav-menu">
-        <a href="#audiences" class="nav-item">Solutions</a>
-        <a href="#capsule" class="nav-item">Capsule RAG</a>
-        <a href="#features" class="nav-item">Features</a>
-        <a href="#comparison" class="nav-item">Why Kenowa</a>
-        <a href="help.html" class="nav-item">Docs</a>
-        <a href="setup.html" class="nav-item">Setup</a>
-      </nav>
+      <button class="navbar-toggler border-0 text-white" type="button" data-bs-toggle="collapse" data-bs-target="#navContent" aria-controls="navContent" aria-expanded="false" aria-label="Toggle navigation">
+        <i class='bx bx-menu fs-2'></i>
+      </button>
 
-      <div class="nav-actions">
-        <a href="https://github.com/nadeemmhdm/kenowa-extesions" target="_blank" rel="noopener" class="btn btn-glass" title="View Source on GitHub">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
-          GitHub
-        </a>
-        <a href="https://github.com/nadeemmhdm/kenowa-extesions/archive/refs/tags/v2.18.zip" class="btn btn-primary" title="Download ZIP release">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Download Extension
-        </a>
+      <div class="collapse navbar-collapse" id="navContent">
+        <ul class="navbar-nav mx-auto mb-2 mb-lg-0 gap-1">
+          <li class="nav-item"><a class="nav-link nav-link-custom" href="#features"><i class='bx bx-grid-alt me-1'></i> Features</a></li>
+          <li class="nav-item"><a class="nav-link nav-link-custom" href="#models"><i class='bx bx-chip me-1'></i> AI Models</a></li>
+          <li class="nav-item"><a class="nav-link nav-link-custom" href="#capsules"><i class='bx bx-bookmark-alt me-1'></i> Capsule RAG</a></li>
+          <li class="nav-item"><a class="nav-link nav-link-custom" href="#install"><i class='bx bx-download me-1'></i> Setup Guide</a></li>
+          <li class="nav-item"><a class="nav-link nav-link-custom" href="help.html"><i class='bx bx-book-open me-1'></i> Docs</a></li>
+          <li class="nav-item"><a class="nav-link nav-link-custom" href="https://github.com/nadeemmhdm/kenowa-extesions" target="_blank" rel="noopener"><i class='bx bxl-github me-1'></i> GitHub</a></li>
+        </ul>
+
+        <div class="d-flex align-items-center gap-3">
+          <a href="https://github.com/nadeemmhdm/kenowa-extesions/archive/refs/tags/v2.18.zip" class="btn-kenowa-primary" id="nav-download-btn">
+            <i class='bx bx-download fs-5'></i>
+            <span>Download v2.18</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ───────────────────────────────────────────
+       HERO SECTION
+       ─────────────────────────────────────────── -->
+  <header class="py-5 position-relative text-center overflow-hidden">
+    <div class="container py-lg-4">
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+
+          <div class="hero-badge">
+            <span class="status-dot"></span>
+            <span>Version 2.18 Live</span>
+            <span class="mx-1 text-muted">·</span>
+            <span>Local Ollama + Verifiable Citations</span>
+            <i class='bx bx-right-arrow-alt'></i>
+          </div>
+
+          <h1 class="display-3 fw-bold mb-3 text-white">
+            Your Private, Multi-Model <br>
+            <span style="background: linear-gradient(135deg, #4f8ef7 10%, #7c6af7 60%, #10b981 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+              Web AI Copilot
+            </span>
+          </h1>
+
+          <p class="lead text-sub mb-4 mx-auto" style="max-width: 720px; font-size: 1.18rem;">
+            Experience lightning-fast intelligence directly in your Chrome sidebar. Powered by 
+            <strong>Google Gemini 2.0</strong>, <strong>OpenRouter</strong>, and <strong>Ollama (Local & Cloud)</strong> 
+            with personal <strong>Capsule RAG</strong> citations, local AES-GCM encryption, and zero middleman telemetry.
+          </p>
+
+          <div class="d-flex flex-wrap justify-content-center gap-3 mb-5">
+            <a href="https://github.com/nadeemmhdm/kenowa-extesions/archive/refs/tags/v2.18.zip" class="btn-kenowa-primary py-3 px-4 fs-6" id="hero-download-btn">
+              <i class='bx bxs-download fs-4'></i>
+              <span>Download Extension (v2.18 ZIP)</span>
+            </a>
+            <a href="setup.html" class="btn-kenowa-secondary py-3 px-4 fs-6">
+              <i class='bx bx-book-reader fs-4'></i>
+              <span>60s Installation Guide</span>
+            </a>
+            <a href="https://github.com/nadeemmhdm/kenowa-extesions" target="_blank" rel="noopener" class="btn-kenowa-secondary py-3 px-4 fs-6">
+              <i class='bx bxl-github fs-4'></i>
+              <span>Star on GitHub</span>
+            </a>
+          </div>
+
+          <!-- Feature Tag Pills -->
+          <div class="d-flex flex-wrap justify-content-center gap-2 text-sub fs-8 mb-5">
+            <span class="badge rounded-pill bg-dark border border-secondary px-3 py-2"><i class='bx bx-check-circle text-success me-1'></i> 100% Local Encryption</span>
+            <span class="badge rounded-pill bg-dark border border-secondary px-3 py-2"><i class='bx bx-check-circle text-success me-1'></i> Local Ollama (Zero API Key)</span>
+            <span class="badge rounded-pill bg-dark border border-secondary px-3 py-2"><i class='bx bx-check-circle text-success me-1'></i> Personal Capsule RAG</span>
+            <span class="badge rounded-pill bg-dark border border-secondary px-3 py-2"><i class='bx bx-check-circle text-success me-1'></i> Shortcut Ctrl+Shift+K</span>
+          </div>
+
+          <!-- ───────────────────────────────────────────
+               INTERACTIVE EXTENSION MOCKUP
+               ─────────────────────────────────────────── -->
+          <div class="mockup-window text-start">
+            <div class="mockup-header">
+              <div class="d-flex align-items-center gap-2">
+                <img src="logo.png" width="22" height="22" alt="Kenowa" class="rounded">
+                <span class="fw-bold text-white small brand-font">Kenowa 2.18</span>
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-2 py-0" style="font-size:0.68rem;">Ollama Local</span>
+              </div>
+              <div class="d-flex align-items-center gap-2 text-muted">
+                <i class='bx bx-minus'></i>
+                <i class='bx bx-expand-alt'></i>
+                <i class='bx bx-x'></i>
+              </div>
+            </div>
+
+            <div class="mockup-body">
+              <!-- User Message -->
+              <div class="mock-msg-user">
+                What design pattern matches my Course Syllabus Chapter 3 notes?
+              </div>
+
+              <!-- AI Message with Capsule Citations -->
+              <div class="mock-msg-ai">
+                <div class="fw-semibold text-white mb-1 d-flex align-items-center gap-1">
+                  <i class='bx bx-bot text-primary'></i> Kenowa AI
+                </div>
+                <p class="mb-2 text-sub" style="font-size:0.82rem; line-height:1.5;">
+                  Based on your uploaded <strong>syllabus-ch3.md</strong>, the <strong>Strategy Pattern</strong> defines a family of algorithms, encapsulating each one so they can be selected dynamically at runtime.
+                </p>
+
+                <!-- Collapsible Source Drawer (v2.18 Superpower) -->
+                <div class="mock-sources-drawer">
+                  <div class="mock-sources-trigger" id="mock-source-toggle">
+                    <span class="d-flex align-items-center gap-1">
+                      <i class='bx bx-bookmark-alt'></i> Retrieved Sources (1 excerpt used)
+                    </span>
+                    <i class='bx bx-chevron-down' id="mock-source-icon"></i>
+                  </div>
+                  <div class="mock-sources-content" id="mock-source-content" style="display: none;">
+                    <strong>[syllabus-ch3.md · Excerpt #2]</strong><br>
+                    "Section 3.4: Behavioral Patterns — The Strategy Pattern encapsulates interchangeable algorithm objects..."
+                  </div>
+                </div>
+              </div>
+
+              <!-- Suggestion Chips (Wrapped & Overflow-Free) -->
+              <div class="mock-chips-row">
+                <div class="mock-chip"><i class='bx bx-bulb'></i> Provide code example</div>
+                <div class="mock-chip"><i class='bx bx-bulb'></i> Quiz me on this topic</div>
+                <div class="mock-chip"><i class='bx bx-bulb'></i> Compare with State Pattern</div>
+              </div>
+
+              <!-- Composer Bar -->
+              <div class="mock-input-row">
+                <span>Message Kenowa or @mention a tab...</span>
+                <div class="d-flex align-items-center gap-2">
+                  <i class='bx bx-paperclip text-muted'></i>
+                  <i class='bx bx-send text-primary'></i>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
       </div>
     </div>
   </header>
 
-  <!-- ── Hero Section ─────────────────────────────────────────── -->
-  <section class="hero-section">
+  <!-- ───────────────────────────────────────────
+       LIVE METRICS / PROOF SECTION
+       ─────────────────────────────────────────── -->
+  <section class="py-4 border-top border-bottom" style="background: rgba(14, 14, 23, 0.45); border-color: var(--border) !important;">
     <div class="container">
-      <div class="hero-eyebrow">
-        <span class="eyebrow-dot"></span>
-        Kenowa 2.18 · The Private Web Copilot
-      </div>
-
-      <h1 class="hero-heading">
-        Your Private Multi-Model Copilot for <span class="text-gradient">Research, Code & Deep Learning</span>
-      </h1>
-
-      <p class="hero-lead">
-        Experience seamless AI in your Chrome sidebar. Tap into personal <strong>Capsule RAG</strong> with verifiable citations, instant webpage context, and full multi-model freedom across <strong>Gemini 2.0, DeepSeek R1, LLaMA 3.1 & Ollama</strong>. 100% local encryption. Zero telemetry.
-      </p>
-
-      <div class="hero-cta-group">
-        <a href="https://github.com/nadeemmhdm/kenowa-extesions/archive/refs/tags/v2.18.zip" class="btn btn-primary" style="padding: 13px 28px; font-size: 1rem;">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Download Source (ZIP) — v2.18
-        </a>
-        <a href="setup.html" class="btn btn-glass" style="padding: 13px 24px; font-size: 0.95rem;">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
-          Quick Setup Guide (2 Mins)
-        </a>
-        <a href="help.html" class="btn btn-glass" style="padding: 13px 22px; font-size: 0.95rem;">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          View Documentation
-        </a>
-      </div>
-
-      <!-- Trust Metrics Bar -->
-      <div class="hero-metrics">
-        <div class="metric-card">
-          <div class="metric-value">100%</div>
-          <div class="metric-label">Local Encryption</div>
+      <div class="row g-4 text-center">
+        <div class="col-6 col-md-3">
+          <div class="h2 fw-bold text-white mb-1 brand-font">100%</div>
+          <div class="text-sub small">Client-Side Privacy</div>
         </div>
-        <div class="metric-card">
-          <div class="metric-value">0</div>
-          <div class="metric-label">Middleman Logs</div>
+        <div class="col-6 col-md-3">
+          <div class="h2 fw-bold text-white mb-1 brand-font">0 ms</div>
+          <div class="text-sub small">Middleman Telemetry</div>
         </div>
-        <div class="metric-card">
-          <div class="metric-value">3+</div>
-          <div class="metric-label">AI Providers</div>
+        <div class="col-6 col-md-3">
+          <div class="h2 fw-bold text-white mb-1 brand-font">4 Providers</div>
+          <div class="text-sub small">Gemini, OpenRouter, Ollama Local & Cloud</div>
         </div>
-        <div class="metric-card">
-          <div class="metric-value">Instant</div>
-          <div class="metric-label">Capsule Citations</div>
+        <div class="col-6 col-md-3">
+          <div class="h2 fw-bold text-white mb-1 brand-font">&lt; 60s</div>
+          <div class="text-sub small">Unpacked Setup Time</div>
         </div>
       </div>
+    </div>
+  </section>
 
-      <!-- Live Mockup Visual -->
-      <div class="showcase-stage">
-        <div class="showcase-canvas">
-          <!-- Browser Tab Side -->
-          <div class="browser-mock">
-            <div class="browser-top">
-              <div class="browser-dots">
-                <span class="b-dot red"></span>
-                <span class="b-dot yellow"></span>
-                <span class="b-dot green"></span>
-              </div>
-              <div class="browser-bar">https://ocw.mit.edu/courses/electrical-engineering-and-computer-science</div>
+  <!-- ───────────────────────────────────────────
+       TARGET AUDIENCE SECTION
+       ─────────────────────────────────────────── -->
+  <section class="py-5" id="audiences">
+    <div class="container py-lg-4">
+      <div class="text-center mb-5">
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1 mb-2">Tailored Workflows</span>
+        <h2 class="display-5 fw-bold text-white">Engineered For People Who Build & Learn</h2>
+        <p class="text-sub mx-auto" style="max-width: 620px;">Whether you're digesting research, debugging complex systems, or drafting reports, Kenowa adapts to your domain.</p>
+      </div>
+
+      <div class="row g-4">
+        <!-- Students -->
+        <div class="col-lg-4 col-md-6">
+          <div class="glass-card audience-card student">
+            <div class="feature-icon-box icon-blue">
+              <i class='bx bxs-graduation'></i>
             </div>
-            <div class="browser-body">
-              <h3 style="color:#fff; font-size:1.15rem; margin-bottom:12px; font-family:'Syne',sans-serif;">Object-Oriented Modeling & Design Patterns</h3>
-              <p style="margin-bottom:14px;">
-                Software system design requires breaking complex business domains into modular components. 
-                <span class="browser-highlight">The three-phase process consists of Object-Oriented Analysis (OOA), Object-Oriented Design (OOD), and Implementation.</span>
-              </p>
-              <p style="font-size: 0.85rem; color: var(--text-muted);">
-                By employing proven creational and structural patterns, developers ensure architectural durability, minimal refactoring debt, and clean separation of concerns...
-              </p>
-            </div>
+            <h4 class="text-white mb-2">Students & Researchers</h4>
+            <p class="text-sub small mb-4">
+              Upload textbook chapters and lecture notes into your Personal Capsule. Ask questions with verifiable citations and trigger automated quiz & exam practice modes.
+            </p>
+            <ul class="list-unstyled text-sub small d-flex flex-column gap-2 mb-0">
+              <li><i class='bx bx-check text-primary me-2'></i> Expandable citation drawer for proof</li>
+              <li><i class='bx bx-check text-primary me-2'></i> Auto-question detection (Exam Mode)</li>
+              <li><i class='bx bx-check text-primary me-2'></i> AI Training Cache for instant repeat answers</li>
+            </ul>
           </div>
+        </div>
 
-          <!-- Kenowa Sidepanel Side -->
-          <div class="sidepanel-mock">
-            <div class="mock-header">
-              <div class="mock-header-brand">
-                <img src="logo.png" width="20" height="20" alt="Logo">
-                <span>Kenowa 2.18</span>
-              </div>
-              <span style="font-size:0.68rem; font-family:'Fira Code',monospace; background:rgba(79,142,247,0.15); color:var(--accent); padding:2px 6px; border-radius:4px; font-weight:600;">PRO</span>
+        <!-- Developers -->
+        <div class="col-lg-4 col-md-6">
+          <div class="glass-card audience-card dev">
+            <div class="feature-icon-box icon-violet">
+              <i class='bx bx-code-alt'></i>
             </div>
-            <div class="mock-body">
-              <div class="mock-user-msg">Explain OOM/D 3-phase process from my course notes</div>
-              <div class="mock-ai-msg">
-                OOM is structured into three foundational stages:
-                <br>1. <strong>Analysis (OOA)</strong>: Understand the real-world domain.
-                <br>2. <strong>Design (OOD)</strong>: Shape patterns and class contracts.
-                <br>3. <strong>Implementation</strong>: Execute clean, maintainable code.
-              </div>
+            <h4 class="text-white mb-2">Software Developers</h4>
+            <p class="text-sub small mb-4">
+              Run offline code assistance with local Ollama (<span class="font-mono text-white">deepseek-r1</span>, <span class="font-mono text-white">qwen2.5-coder</span>) without sharing sensitive code or API keys outside your machine.
+            </p>
+            <ul class="list-unstyled text-sub small d-flex flex-column gap-2 mb-0">
+              <li><i class='bx bx-check text-primary me-2'></i> Local Ollama on <span class="font-mono">localhost:11434</span></li>
+              <li><i class='bx bx-check text-primary me-2'></i> Sidepanel shortcut: <kbd class="bg-dark text-white border border-secondary">Ctrl+Shift+K</kbd></li>
+              <li><i class='bx bx-check text-primary me-2'></i> Clean GFM Markdown table rendering</li>
+            </ul>
+          </div>
+        </div>
 
-              <!-- Collapsible Source Section -->
-              <div class="mock-source-collapsible">
-                <button class="mock-source-toggle" type="button">
-                  <span style="color:var(--accent);">📚</span>
-                  <span style="flex:1;">Sources (1) — OOMD_Notes.md</span>
-                  <span>▾</span>
-                </button>
-                <div class="mock-source-detail">
-                  "OOM is a three phase process: 1. Object-oriented analysis, 2. Object-oriented design, 3. Implementation..."
-                </div>
-              </div>
-
-              <!-- Suggested follow-ups -->
-              <div class="mock-suggestions-list">
-                <span class="mock-chip">What are common creational patterns?</span>
-                <span class="mock-chip">How does OO modeling differ from OOD?</span>
-              </div>
-
-              <div class="mock-input-area">
-                <span style="color:var(--text-muted); font-size:0.78rem;">Message Kenowa or @mention a tab...</span>
-                <div class="mock-send-btn">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                </div>
-              </div>
+        <!-- Writers & Creators -->
+        <div class="col-lg-4 col-md-12">
+          <div class="glass-card audience-card writer">
+            <div class="feature-icon-box icon-emerald">
+              <i class='bx bx-pen'></i>
             </div>
+            <h4 class="text-white mb-2">Writers & Web Explorers</h4>
+            <p class="text-sub small mb-4">
+              Select text on any webpage for instant summarization, grammar refinement, and tone adjustments. Use tab @mentions to summarize entire articles in seconds.
+            </p>
+            <ul class="list-unstyled text-sub small d-flex flex-column gap-2 mb-0">
+              <li><i class='bx bx-check text-primary me-2'></i> Right-click & selection quick menu</li>
+              <li><i class='bx bx-check text-primary me-2'></i> Instant page scan (<kbd class="bg-dark text-white border border-secondary">Scan Page</kbd>)</li>
+              <li><i class='bx bx-check text-primary me-2'></i> Zero cloud tracking of your browsing habits</li>
+            </ul>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ── Solutions by Audience ─────────────────────────────────── -->
-  <section class="audience-section" id="audiences">
-    <div class="container">
-      <div class="section-header">
-        <div class="section-kicker">Targeted Superpowers</div>
-        <h2 class="section-heading font-syne">Built specifically for the way you think & work</h2>
-        <p class="section-sub">Whether you are deciphering complex research papers, debugging software in the browser, or writing with maximum privacy.</p>
+  <!-- ───────────────────────────────────────────
+       CORE FEATURES GRID
+       ─────────────────────────────────────────── -->
+  <section class="py-5" id="features">
+    <div class="container py-lg-4">
+      <div class="text-center mb-5">
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1 mb-2">Capabilities</span>
+        <h2 class="display-5 fw-bold text-white">Engineered For Performance & Privacy</h2>
+        <p class="text-sub mx-auto" style="max-width: 620px;">Built from the ground up as a native Manifest V3 Chrome Extension.</p>
       </div>
 
-      <div class="audience-card-deck">
-        <!-- Card 1: Students & Researchers -->
-        <div class="audience-card">
-          <div class="card-icon-bubble">🎓</div>
-          <h3 class="card-title">Students & Academic Researchers</h3>
-          <p class="card-text">
-            Turn textbooks, slide decks, and lecture markdown into an on-demand personal oracle without hallucinations.
-          </p>
-          <ul class="card-feature-list">
-            <li>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              <strong>Capsule Document RAG</strong>: Verified citations from your notes
-            </li>
-            <li>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              <strong>Question Solver (Ctrl+Shift+Q)</strong>: Step-by-step reasoning
-            </li>
-            <li>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              <strong>Study Buddy Persona</strong>: Socrates-style leading quizzes
-            </li>
-          </ul>
+      <div class="row g-4">
+        <!-- Feature 1 -->
+        <div class="col-md-6 col-lg-4">
+          <div class="glass-card h-100">
+            <div class="feature-icon-box icon-emerald">
+              <i class='bx bx-server'></i>
+            </div>
+            <h5 class="text-white mb-2">Local Ollama (Offline AI)</h5>
+            <p class="text-sub small mb-0">
+              Direct connection to your local machine at <span class="font-mono text-white">http://localhost:11434</span>. Zero API keys required. 100% private and offline capable.
+            </p>
+          </div>
         </div>
 
-        <!-- Card 2: Software Developers -->
-        <div class="audience-card">
-          <div class="card-icon-bubble">⚡</div>
-          <h3 class="card-title">Developers & Tech Professionals</h3>
-          <p class="card-text">
-            Instant code generation, refactoring, and documentation querying right in your sidepanel without context switching.
-          </p>
-          <ul class="card-feature-list">
-            <li>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              <strong>Multi-Model Switching</strong>: Gemini 2.0, DeepSeek R1, LLaMA
-            </li>
-            <li>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              <strong>Fira Code Syntax Highlighting</strong>: 1-click clipboard copy
-            </li>
-            <li>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              <strong>Web RAG (Alt+S)</strong>: Scans GitHub issues and API reference
-            </li>
-          </ul>
+        <!-- Feature 2 -->
+        <div class="col-md-6 col-lg-4">
+          <div class="glass-card h-100">
+            <div class="feature-icon-box icon-blue">
+              <i class='bx bx-cloud'></i>
+            </div>
+            <h5 class="text-white mb-2">Ollama Cloud (Hosted GPU)</h5>
+            <p class="text-sub small mb-0">
+              Connect to datacenter-grade hardware via <span class="font-mono text-white">ollama.com/api</span>. Run 70B+ parameter models without taxing your laptop hardware.
+            </p>
+          </div>
         </div>
 
-        <!-- Card 3: Writers & Power Users -->
-        <div class="audience-card">
-          <div class="card-icon-bubble">✍️</div>
-          <h3 class="card-title">Writers & Privacy-First Power Users</h3>
-          <p class="card-text">
-            Refine tone, summarize articles, and translate text instantly while keeping your data 100% confidential.
-          </p>
-          <ul class="card-feature-list">
-            <li>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              <strong>Zero-Leak Telemetry</strong>: Direct browser-to-API calls
-            </li>
-            <li>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              <strong>Selection Floating Toolbar</strong>: Translate & rewrite on highlight
-            </li>
-            <li>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              <strong>Local AES-GCM Encryption</strong>: Master sync password security
-            </li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Capsule RAG Deep-Dive ─────────────────────────────────── -->
-  <section class="features-section" id="capsule" style="background: rgba(14, 14, 23, 0.45); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
-    <div class="container">
-      <div class="section-header">
-        <div class="section-kicker">Core Superpower</div>
-        <h2 class="section-heading font-syne">Personal Capsule RAG with Verifiable Citations</h2>
-        <p class="section-sub">Stop relying on hallucinations. Feed Kenowa your own study guides, project docs, and cheat sheets for grounded, traceable answers.</p>
-      </div>
-
-      <div class="features-grid">
-        <div class="feat-card">
-          <span class="feat-badge">GROUNDED CITATIONS</span>
-          <h3 class="card-title">Transparent Sources Pill</h3>
-          <p class="card-text">Every answer generated using your Capsule displays a collapsible Sources drawer. Expand it anytime to inspect the exact file name and excerpt used by the AI model.</p>
+        <!-- Feature 3 -->
+        <div class="col-md-6 col-lg-4">
+          <div class="glass-card h-100">
+            <div class="feature-icon-box icon-amber">
+              <i class='bx bx-file-blank'></i>
+            </div>
+            <h5 class="text-white mb-2">Personal Capsule RAG</h5>
+            <p class="text-sub small mb-0">
+              Save up to 5 Markdown documents locally. Kenowa extracts relevant sections and embeds verifiable source citations directly beneath every answer.
+            </p>
+          </div>
         </div>
 
-        <div class="feat-card">
-          <span class="feat-badge">SMART BM25 RETRIEVAL</span>
-          <h3 class="card-title">Passage-Level Scoring</h3>
-          <p class="card-text">Kenowa segments your documents into optimized semantic passages, calculates relevance against your query, and supplies only the top-ranked sections to preserve token efficiency.</p>
+        <!-- Feature 4 -->
+        <div class="col-md-6 col-lg-4">
+          <div class="glass-card h-100">
+            <div class="feature-icon-box icon-violet">
+              <i class='bx bx-slider-alt'></i>
+            </div>
+            <h5 class="text-white mb-2">Expandable Citations</h5>
+            <p class="text-sub small mb-0">
+              Collapsible drawer under AI responses keeps your chat clean while letting you verify exact source quotes and document origin on demand.
+            </p>
+          </div>
         </div>
 
-        <div class="feat-card">
-          <span class="feat-badge">ZERO SERVER CLOUD</span>
-          <h3 class="card-title">100% Client-Side Knowledge</h3>
-          <p class="card-text">Your documents are never uploaded to a corporate vector database or training cluster. They live safely in your browser storage and remain under your complete ownership.</p>
+        <!-- Feature 5 -->
+        <div class="col-md-6 col-lg-4">
+          <div class="glass-card h-100">
+            <div class="feature-icon-box icon-blue">
+              <i class='bx bx-refresh'></i>
+            </div>
+            <h5 class="text-white mb-2">Auto GitHub Release Check</h5>
+            <p class="text-sub small mb-0">
+              In-app release monitor checks GitHub releases automatically and alerts you whenever a new version is available with a 1-click update download.
+            </p>
+          </div>
+        </div>
+
+        <!-- Feature 6 -->
+        <div class="col-md-6 col-lg-4">
+          <div class="glass-card h-100">
+            <div class="feature-icon-box icon-emerald">
+              <i class='bx bx-shield-quarter'></i>
+            </div>
+            <h5 class="text-white mb-2">Local AES Encryption</h5>
+            <p class="text-sub small mb-0">
+              All credentials and history remain in Chrome’s sandboxed local storage with client-side encryption. Zero tracking servers. Zero telemetry.
+            </p>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ── Complete Feature Grid ─────────────────────────────────── -->
-  <section class="features-section" id="features">
-    <div class="container">
-      <div class="section-header">
-        <div class="section-kicker">Everything Under the Hood</div>
-        <h2 class="section-heading font-syne">Engineered for speed, privacy & workflow mastery</h2>
+  <!-- ───────────────────────────────────────────
+       MODEL MATRIX SECTION
+       ─────────────────────────────────────────── -->
+  <section class="py-5" id="models" style="background: rgba(14, 14, 23, 0.35);">
+    <div class="container py-lg-4">
+      <div class="text-center mb-5">
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1 mb-2">Freedom of Choice</span>
+        <h2 class="display-5 fw-bold text-white">Compare Supported AI Providers</h2>
+        <p class="text-sub mx-auto" style="max-width: 620px;">Switch between local offline privacy, high-throughput cloud endpoints, and free-tier APIs with a single click.</p>
       </div>
 
-      <div class="features-grid">
-        <div class="feat-card">
-          <span class="feat-badge">PROVIDER AGNOSTIC</span>
-          <h3 class="card-title">Multi-Model Switcher</h3>
-          <p class="card-text">Toggle between Google Gemini 2.0 Flash, OpenRouter (GPT-4o Mini, DeepSeek R1, LLaMA 3.1), and Ollama Cloud or Local without re-authenticating.</p>
-        </div>
-
-        <div class="feat-card">
-          <span class="feat-badge">ON-PAGE SCANNER</span>
-          <h3 class="card-title">Web Context RAG (Alt+S)</h3>
-          <p class="card-text">Press Alt+S to inject clean text from the active webpage into your conversation. Ask complex questions, find contradictions, or synthesize articles in real time.</p>
-        </div>
-
-        <div class="feat-card">
-          <span class="feat-badge">ONE-CLICK SELECTION</span>
-          <h3 class="card-title">Instant Text Floating Pill</h3>
-          <p class="card-text">Highlight text on any website to reveal the Kenowa quick-action bar: Summarize, Translate, Solve Question, or Explain without opening the full sidebar.</p>
-        </div>
-
-        <div class="feat-card">
-          <span class="feat-badge">AES-GCM CRYPTOGRAPHY</span>
-          <h3 class="card-title">End-to-End Encrypted Sync</h3>
-          <p class="card-text">Safeguard your chat histories and settings with local PBKDF2 and AES-GCM 256-bit encryption. Your master password ensures only you can decrypt your data.</p>
-        </div>
-
-        <div class="feat-card">
-          <span class="feat-badge">EXAM & QUIZ ENGINE</span>
-          <h3 class="card-title">Multi-Tab Exam Mode</h3>
-          <p class="card-text">Designed for active academic assessments with automatic question detection, step-by-step reasoning previews, and configurable auto-submit safety triggers.</p>
-        </div>
-
-        <div class="feat-card">
-          <span class="feat-badge">AUTO-UPDATE DETECTION</span>
-          <h3 class="card-title">Instant Release Alerts (v2.18+)</h3>
-          <p class="card-text">Background version monitor checks GitHub releases automatically, alerting you via a clean modal with release notes and 1-click update downloads.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Comparison Section ───────────────────────────────────── -->
-  <section class="compare-section" id="comparison">
-    <div class="container">
-      <div class="section-header">
-        <div class="section-kicker">Honest Comparison</div>
-        <h2 class="section-heading font-syne">How Kenowa compares to traditional AI extensions</h2>
-      </div>
-
-      <div class="compare-table-wrap">
-        <table class="compare-table">
+      <div class="table-responsive">
+        <table class="table table-dark-custom w-100">
           <thead>
             <tr>
-              <th>Feature Capability</th>
-              <th class="highlight-col">Kenowa AI Assistant</th>
-              <th>Typical Cloud Extensions</th>
+              <th scope="col">Provider</th>
+              <th scope="col">Endpoint</th>
+              <th scope="col">API Key Required?</th>
+              <th scope="col">Sample Models</th>
+              <th scope="col">Offline Capable?</th>
+              <th scope="col">Best For</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td><strong>Privacy & Telemetry</strong></td>
-              <td class="highlight-col"><span class="check-yes">✓ Zero telemetry; client-to-API only</span></td>
-              <td><span class="check-no">✗ Prompts routed through vendor servers</span></td>
+              <td><strong class="text-white"><i class='bx bx-server text-success me-1'></i> Ollama (Local)</strong></td>
+              <td><span class="font-mono text-sub">http://localhost:11434</span></td>
+              <td><span class="badge bg-success-subtle text-success border border-success-subtle">No Key Required</span></td>
+              <td><span class="font-mono text-white">llama3.2, deepseek-r1, qwen2.5</span></td>
+              <td><span class="check-yes"><i class='bx bx-check-circle'></i> 100% Offline</span></td>
+              <td>Sensitive code, local data, zero cost</td>
             </tr>
             <tr>
-              <td><strong>Personal Document RAG</strong></td>
-              <td class="highlight-col"><span class="check-yes">✓ Capsule RAG with collapsible citations</span></td>
-              <td><span class="check-no">✗ Expensive cloud vector upsells</span></td>
+              <td><strong class="text-white"><i class='bx bx-cloud text-primary me-1'></i> Ollama Cloud</strong></td>
+              <td><span class="font-mono text-sub">https://ollama.com/api</span></td>
+              <td><span class="badge bg-primary-subtle text-primary border border-primary-subtle">Ollama Key</span></td>
+              <td><span class="font-mono text-white">gpt-oss:120b, deepseek-v3.1, gemma4</span></td>
+              <td><span class="check-no"><i class='bx bx-x-circle'></i> Cloud Hosted</span></td>
+              <td>Huge 70B+ models on cloud GPUs</td>
             </tr>
             <tr>
-              <td><strong>Model Flexibility</strong></td>
-              <td class="highlight-col"><span class="check-yes">✓ Gemini 2.0, DeepSeek R1, LLaMA, Ollama</span></td>
-              <td><span class="check-no">✗ Locked into vendor-chosen model</span></td>
+              <td><strong class="text-white"><i class='bx bxl-google text-warning me-1'></i> Google Gemini</strong></td>
+              <td><span class="font-mono text-sub">googleapis.com</span></td>
+              <td><span class="badge bg-warning-subtle text-warning border border-warning-subtle">Free AI Studio Key</span></td>
+              <td><span class="font-mono text-white">gemini-2.0-flash, gemini-1.5-pro</span></td>
+              <td><span class="check-no"><i class='bx bx-x-circle'></i> Cloud Hosted</span></td>
+              <td>Multimodal speed & 1M+ token context</td>
             </tr>
             <tr>
-              <td><strong>Cost / Subscription</strong></td>
-              <td class="highlight-col"><span class="check-yes">✓ 100% Free & Open-Source (BYO Key)</span></td>
-              <td><span class="check-no">✗ \$20 – \$40 / month recurring fee</span></td>
-            </tr>
-            <tr>
-              <td><strong>Offline-First History</strong></td>
-              <td class="highlight-col"><span class="check-yes">✓ Local storage + AES-GCM password sync</span></td>
-              <td><span class="check-no">✗ Server-stored user accounts</span></td>
+              <td><strong class="text-white"><i class='bx bx-globe text-info me-1'></i> OpenRouter</strong></td>
+              <td><span class="font-mono text-sub">openrouter.ai/api</span></td>
+              <td><span class="badge bg-info-subtle text-info border border-info-subtle">OpenRouter Key</span></td>
+              <td><span class="font-mono text-white">claude-3.5-sonnet, gpt-4o-mini</span></td>
+              <td><span class="check-no"><i class='bx bx-x-circle'></i> Cloud Hosted</span></td>
+              <td>Accessing 100+ models from one key</td>
             </tr>
           </tbody>
         </table>
@@ -1343,44 +973,62 @@
     </div>
   </section>
 
-  <!-- ── Testimonials ─────────────────────────────────────────── -->
-  <section class="testimonials-section">
-    <div class="container">
-      <div class="section-header">
-        <div class="section-kicker">Community Feedback</div>
-        <h2 class="section-heading font-syne">Loved by researchers, engineers & students</h2>
+  <!-- ───────────────────────────────────────────
+       INSTALLATION STEPPER (60 SECONDS)
+       ─────────────────────────────────────────── -->
+  <section class="py-5" id="install">
+    <div class="container py-lg-4">
+      <div class="text-center mb-5">
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1 mb-2">Quickstart</span>
+        <h2 class="display-5 fw-bold text-white">Install Kenowa in 60 Seconds</h2>
+        <p class="text-sub mx-auto" style="max-width: 620px;">No web store approval wait. Install unpacked in Chrome, Brave, Edge, or Arc.</p>
       </div>
 
-      <div class="testimonials-grid">
-        <div class="testi-card">
-          <p class="testi-quote">"Kenowa's Capsule RAG is a game-changer. I uploaded my 40-page distributed systems syllabus notes and got citation-backed explanations directly in my sidepanel without my school data leaking."</p>
-          <div class="testi-author">
-            <div class="author-avatar">AK</div>
-            <div>
-              <div class="author-name">Aditya K.</div>
-              <div class="author-role">Computer Science Researcher</div>
+      <div class="row g-4 justify-content-center">
+        <!-- Step 1 -->
+        <div class="col-lg-4 col-md-6">
+          <div class="glass-card h-100">
+            <div class="d-flex align-items-center gap-3 mb-3">
+              <div class="step-badge">1</div>
+              <h5 class="text-white mb-0">Download & Unzip</h5>
+            </div>
+            <p class="text-sub small mb-3">
+              Download the official release archive and extract the zip file into a permanent folder on your computer.
+            </p>
+            <a href="https://github.com/nadeemmhdm/kenowa-extesions/archive/refs/tags/v2.18.zip" class="btn btn-sm btn-outline-primary rounded-pill w-100">
+              <i class='bx bx-download me-1'></i> Download v2.18 ZIP
+            </a>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="col-lg-4 col-md-6">
+          <div class="glass-card h-100">
+            <div class="d-flex align-items-center gap-3 mb-3">
+              <div class="step-badge">2</div>
+              <h5 class="text-white mb-0">Developer Mode</h5>
+            </div>
+            <p class="text-sub small mb-3">
+              Open Chrome and go to <code class="text-white bg-dark px-2 py-1 rounded">chrome://extensions</code>. Toggle the <strong>Developer mode</strong> switch in the top right.
+            </p>
+            <div class="p-2 bg-dark rounded border border-secondary text-sub font-mono small text-center">
+              chrome://extensions
             </div>
           </div>
         </div>
 
-        <div class="testi-card">
-          <p class="testi-quote">"Having DeepSeek R1 and Gemini 2.0 in the same extension is fantastic. When debugging complex web components, having syntax-highlighted code in a native sidepanel saves me hours every week."</p>
-          <div class="testi-author">
-            <div class="author-avatar">MR</div>
-            <div>
-              <div class="author-name">Marcus R.</div>
-              <div class="author-role">Senior Full-Stack Engineer</div>
+        <!-- Step 3 -->
+        <div class="col-lg-4 col-md-6">
+          <div class="glass-card h-100">
+            <div class="d-flex align-items-center gap-3 mb-3">
+              <div class="step-badge">3</div>
+              <h5 class="text-white mb-0">Load Unpacked</h5>
             </div>
-          </div>
-        </div>
-
-        <div class="testi-card">
-          <p class="testi-quote">"No subscriptions, no middleman keeping my reading history. I put my own Gemini key in and it is blazing fast. The new collapsible sources drawer in v2.18 gives me complete confidence in AI answers."</p>
-          <div class="testi-author">
-            <div class="author-avatar">SL</div>
-            <div>
-              <div class="author-name">Sarah L.</div>
-              <div class="author-role">Medical Student & Writer</div>
+            <p class="text-sub small mb-3">
+              Click <strong>Load unpacked</strong> and select the extracted folder. Press <kbd class="bg-dark text-white border border-secondary">Ctrl+Shift+K</kbd> to launch your sidebar!
+            </p>
+            <div class="p-2 bg-dark rounded border border-secondary text-sub font-mono small text-center text-success">
+              ✓ Ready to Use!
             </div>
           </div>
         </div>
@@ -1388,182 +1036,234 @@
     </div>
   </section>
 
-  <!-- ── Interactive FAQ ──────────────────────────────────────── -->
-  <section class="faq-section" id="faq">
-    <div class="container">
-      <div class="section-header">
-        <div class="section-kicker">Frequently Asked Questions</div>
-        <h2 class="section-heading font-syne">Everything you need to know about Kenowa</h2>
+  <!-- ───────────────────────────────────────────
+       FAQ ACCORDION
+       ─────────────────────────────────────────── -->
+  <section class="py-5" id="faq">
+    <div class="container py-lg-4">
+      <div class="text-center mb-5">
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1 mb-2">Got Questions?</span>
+        <h2 class="display-5 fw-bold text-white">Frequently Asked Questions</h2>
       </div>
 
-      <div class="faq-accordion">
-        <div class="faq-item active">
-          <button class="faq-question">
-            <span>How do I install the extension from the ZIP file?</span>
-            <span class="faq-chevron">▾</span>
-          </button>
-          <div class="faq-answer">
-            1. Download the <a href="https://github.com/nadeemmhdm/kenowa-extesions/archive/refs/tags/v2.18.zip" style="color:var(--accent);">Source code (zip)</a>.<br>
-            2. Unzip it to a folder on your computer.<br>
-            3. Open Chrome and navigate to <code>chrome://extensions</code>.<br>
-            4. Enable <strong>Developer mode</strong> in the top-right corner.<br>
-            5. Click <strong>Load unpacked</strong> and select the unzipped Kenowa folder. You're ready to go!
-          </div>
-        </div>
+      <div class="row justify-content-center">
+        <div class="col-lg-8">
+          <div class="accordion accordion-custom" id="faqAccordion">
 
-        <div class="faq-item">
-          <button class="faq-question">
-            <span>Are my API keys and personal documents secure?</span>
-            <span class="faq-chevron">▾</span>
-          </button>
-          <div class="faq-answer">
-            Yes, absolutely. Kenowa does not run a proxy backend or telemetry server. Your API keys are stored locally using Chrome's secure storage API. Your Capsule documents stay entirely on your local machine and are only transmitted as prompt reference text directly to the AI provider you explicitly choose.
-          </div>
-        </div>
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingOne">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
+                  Do I need an API key to use Ollama locally?
+                </button>
+              </h2>
+              <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#faqAccordion">
+                <div class="accordion-body">
+                  No! When you select <strong>Ollama (Local / Self-Hosted)</strong> in Settings, Kenowa connects directly to your computer’s local server (<code class="text-white">http://localhost:11434</code>). You don’t need an API key or credit card. Just start Ollama on your machine and Kenowa handles the rest.
+                </div>
+              </div>
+            </div>
 
-        <div class="faq-item">
-          <button class="faq-question">
-            <span>How does the Capsule RAG feature work?</span>
-            <span class="faq-chevron">▾</span>
-          </button>
-          <div class="faq-answer">
-            In Settings, upload Markdown or text files (up to 5 files). When you send a message, Kenowa extracts key terms, scans your capsules for matching passages, ranks them, and supplies the top context to the AI. Under the response, an interactive collapsible "Sources" pill lets you verify the exact text retrieved.
-          </div>
-        </div>
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingTwo">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
+                  What is the difference between Ollama Local and Ollama Cloud?
+                </button>
+              </h2>
+              <div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#faqAccordion">
+                <div class="accordion-body">
+                  <strong>Ollama Local</strong> runs entirely on your machine’s hardware with 100% offline privacy and zero cost. <strong>Ollama Cloud</strong> connects to hosted servers via <code class="text-white">https://ollama.com/api</code> using your Ollama Cloud API key, allowing you to run massive 70B+ parameter models without overloading your personal hardware.
+                </div>
+              </div>
+            </div>
 
-        <div class="faq-item">
-          <button class="faq-question">
-            <span>Can I use Kenowa completely for free?</span>
-            <span class="faq-chevron">▾</span>
-          </button>
-          <div class="faq-answer">
-            Yes! Google provides generous free tier quotas for Gemini 2.0 Flash API keys, and OpenRouter provides multiple free models (such as Gemini 2.0 Free and LLaMA 3.1 8B Free). You can also run Ollama locally on your computer for 100% free offline intelligence.
-          </div>
-        </div>
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingThree">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
+                  How does Personal Capsule RAG work?
+                </button>
+              </h2>
+              <div id="collapseThree" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#faqAccordion">
+                <div class="accordion-body">
+                  In Settings, you can upload up to 5 Markdown or text files (such as course notes, company playbooks, or documentation). When you send a query, Kenowa semantically retrieves the most relevant excerpts and displays the exact citations in a collapsible drawer under the response.
+                </div>
+              </div>
+            </div>
 
-        <div class="faq-item">
-          <button class="faq-question">
-            <span>How do updates work?</span>
-            <span class="faq-chevron">▾</span>
-          </button>
-          <div class="faq-answer">
-            Kenowa v2.18+ includes an automatic background release monitor that pings GitHub every 4 hours. When a new version is released, an update pill and modal appear with release notes and a direct download link.
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingFour">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFour" aria-expanded="false" aria-controls="collapseFour">
+                  Does Kenowa track my web browsing or store my chats?
+                </button>
+              </h2>
+              <div id="collapseFour" class="accordion-collapse collapse" aria-labelledby="headingFour" data-bs-parent="#faqAccordion">
+                <div class="accordion-body">
+                  Never. Kenowa uses client-side local storage with AES-GCM encryption. There are no tracking analytics, telemetry scripts, or middleman proxy servers. Requests go directly from your browser to your selected AI provider.
+                </div>
+              </div>
+            </div>
+
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingFive">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFive" aria-expanded="false" aria-controls="collapseFive">
+                  How do I update when a new version is released?
+                </button>
+              </h2>
+              <div id="collapseFive" class="accordion-collapse collapse" aria-labelledby="headingFive" data-bs-parent="#faqAccordion">
+                <div class="accordion-body">
+                  Kenowa v2.18 has an automated GitHub release monitor. When a new release is published, an update badge and modal appear inside the extension with a 1-click download link. Simply unzip and replace the extension folder.
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ── Final Conversion CTA ─────────────────────────────────── -->
-  <section class="final-cta-section">
-    <div class="container">
-      <div class="final-cta-banner">
-        <h2 class="final-cta-title font-syne">Ready for the fastest, most private <span class="text-gradient">AI Web Copilot</span>?</h2>
-        <p class="final-cta-sub">Join thousands of students, developers, and researchers browsing with verified AI intelligence and zero compromise on privacy.</p>
-        
-        <div style="display:flex; justify-content:center; gap:16px; flex-wrap:wrap;">
-          <a href="https://github.com/nadeemmhdm/kenowa-extesions/archive/refs/tags/v2.18.zip" class="btn btn-primary" style="padding:14px 32px; font-size:1.02rem;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Download Kenowa AI (v2.18 ZIP)
+  <!-- ───────────────────────────────────────────
+       CALL TO ACTION
+       ─────────────────────────────────────────── -->
+  <section class="py-5 text-center position-relative overflow-hidden">
+    <div class="container py-lg-5">
+      <div class="glass-card py-5 px-4 mx-auto" style="max-width: 820px; border-color: var(--border-bright);">
+        <h2 class="display-5 fw-bold text-white mb-3">Upgrade Your Web Intelligence Today</h2>
+        <p class="text-sub lead mb-4 mx-auto" style="max-width: 600px;">
+          Download the latest release and run private, verified AI directly inside your browser in under a minute.
+        </p>
+
+        <div class="d-flex flex-wrap justify-content-center gap-3">
+          <a href="https://github.com/nadeemmhdm/kenowa-extesions/archive/refs/tags/v2.18.zip" class="btn-kenowa-primary py-3 px-4 fs-6">
+            <i class='bx bxs-download fs-4'></i>
+            <span>Download Kenowa v2.18 (ZIP)</span>
           </a>
-          <a href="setup.html" class="btn btn-glass" style="padding:14px 26px; font-size:1rem;">
-            Read Setup Instructions →
+          <a href="https://github.com/nadeemmhdm/kenowa-extesions" target="_blank" rel="noopener" class="btn-kenowa-secondary py-3 px-4 fs-6">
+            <i class='bx bxl-github fs-4'></i>
+            <span>GitHub Repository</span>
           </a>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ── Site Footer ──────────────────────────────────────────── -->
+  <!-- ───────────────────────────────────────────
+       FOOTER
+       ─────────────────────────────────────────── -->
   <footer class="site-footer">
     <div class="container">
-      <div class="footer-grid">
-        <div>
-          <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
-            <img src="logo.png" width="28" height="28" alt="Logo">
-            <span style="font-family:'Syne',sans-serif; font-weight:800; font-size:1.15rem; color:#fff;">Kenowa AI Assistant</span>
+      <div class="row g-4 mb-5">
+        <div class="col-lg-4 col-md-6">
+          <div class="d-flex align-items-center gap-2 mb-3">
+            <img src="logo.png" width="28" height="28" alt="Logo" class="rounded">
+            <span class="fw-bold text-white brand-font fs-5">Kenowa AI Assistant</span>
           </div>
-          <p style="font-size:0.86rem; color:var(--text-sub); line-height:1.6; max-width:320px;">
-            The modern, private web copilot engineered for researchers, engineers, and creators. Powered by Gemini, OpenRouter, and Ollama.
+          <p class="text-sub small pe-lg-4">
+            The private, high-performance web copilot designed for researchers, developers, and creators. Engineered with local encryption and multi-model flexibility.
           </p>
+          <div class="d-flex gap-3 fs-4 text-sub">
+            <a href="https://github.com/nadeemmhdm/kenowa-extesions" target="_blank" rel="noopener" class="text-sub"><i class='bx bxl-github'></i></a>
+            <a href="help.html" class="text-sub"><i class='bx bx-book-open'></i></a>
+            <a href="setup.html" class="text-sub"><i class='bx bx-help-circle'></i></a>
+          </div>
         </div>
 
-        <div>
-          <h4 class="footer-col-title">Documentation</h4>
-          <ul class="footer-links">
-            <li><a href="help.html">User Guide & Docs</a></li>
-            <li><a href="setup.html">Chrome Setup (Unpacked)</a></li>
-            <li><a href="help.html#capsules">Capsule RAG Guide</a></li>
-            <li><a href="help.html#shortcuts">Keyboard Shortcuts</a></li>
+        <div class="col-lg-2 col-6">
+          <div class="footer-heading">Documentation</div>
+          <ul class="footer-link-list small">
+            <li><a href="help.html">User Guide</a></li>
+            <li><a href="setup.html">Chrome Setup</a></li>
+            <li><a href="help.html#capsules">Capsule RAG</a></li>
+            <li><a href="help.html#shortcuts">Shortcuts</a></li>
           </ul>
         </div>
 
-        <div>
-          <h4 class="footer-col-title">Downloads & Code</h4>
-          <ul class="footer-links">
-            <li><a href="https://github.com/nadeemmhdm/kenowa-extesions/archive/refs/tags/v2.18.zip">Download Latest ZIP (v2.18)</a></li>
-            <li><a href="https://github.com/nadeemmhdm/kenowa-extesions/releases">Release Changelog</a></li>
-            <li><a href="https://github.com/nadeemmhdm/kenowa-extesions">GitHub Repository</a></li>
+        <div class="col-lg-3 col-6">
+          <div class="footer-heading">Models & Privacy</div>
+          <ul class="footer-link-list small">
+            <li><a href="#models">Local Ollama</a></li>
+            <li><a href="#models">Ollama Cloud</a></li>
+            <li><a href="#models">Google Gemini 2.0</a></li>
+            <li><a href="#models">OpenRouter Multi-Model</a></li>
+          </ul>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+          <div class="footer-heading">Release & Source</div>
+          <ul class="footer-link-list small">
+            <li><a href="https://github.com/nadeemmhdm/kenowa-extesions/archive/refs/tags/v2.18.zip">Download v2.18 ZIP</a></li>
+            <li><a href="https://github.com/nadeemmhdm/kenowa-extesions/releases">GitHub Releases</a></li>
             <li><a href="preview.html">Responsive Preview Harness</a></li>
-          </ul>
-        </div>
-
-        <div>
-          <h4 class="footer-col-title">Privacy & Security</h4>
-          <ul class="footer-links">
-            <li><a href="help.html#privacy">Local Storage Policy</a></li>
-            <li><a href="help.html#encryption">AES-GCM Encryption</a></li>
-            <li><a href="help.html#providers">Direct API Key Use</a></li>
-            <li><a href="https://github.com/nadeemmhdm/kenowa-extesions/blob/main/LICENSE">MIT Open Source License</a></li>
+            <li><span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill">MIT Open Source</span></li>
           </ul>
         </div>
       </div>
 
-      <div class="footer-bottom">
-        <div>© 2026 Kenowa AI. Open-source, private, and community-driven.</div>
-        <div style="display:flex; gap:18px;">
-          <a href="https://github.com/nadeemmhdm/kenowa-extesions" target="_blank" rel="noopener" style="color:var(--text-sub); text-decoration:none;">GitHub</a>
-          <a href="help.html" style="color:var(--text-sub); text-decoration:none;">Documentation</a>
-          <a href="setup.html" style="color:var(--text-sub); text-decoration:none;">Setup Guide</a>
+      <div class="d-flex flex-wrap justify-content-between align-items-center pt-4 border-top border-secondary-subtle small text-sub">
+        <div>
+          © 2026 Kenowa AI. Open-source, private, and community-driven.
+        </div>
+        <div class="d-flex gap-3">
+          <a href="https://github.com/nadeemmhdm/kenowa-extesions" class="text-sub">GitHub</a>
+          <a href="help.html" class="text-sub">Docs</a>
+          <a href="setup.html" class="text-sub">Installation</a>
         </div>
       </div>
     </div>
   </footer>
 
-  <!-- Interactive JavaScript Interactions -->
-  <script>
-    // FAQ Accordion Interaction
-    document.querySelectorAll('.faq-question').forEach(button => {
-      button.addEventListener('click', () => {
-        const item = button.closest('.faq-item');
-        const isActive = item.classList.contains('active');
-        document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('active'));
-        if (!isActive) item.classList.add('active');
-      });
-    });
+  <!-- Bootstrap 5 Bundle JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 
-    // Mockup Interactive Source Toggle
-    const mockToggle = document.querySelector('.mock-source-toggle');
-    const mockDetail = document.querySelector('.mock-source-detail');
-    if (mockToggle && mockDetail) {
+  <!-- Interactive JavaScript -->
+  <script>
+    // 1. Interactive Mockup Citation Drawer Toggle
+    const mockToggle = document.getElementById('mock-source-toggle');
+    const mockContent = document.getElementById('mock-source-content');
+    const mockIcon = document.getElementById('mock-source-icon');
+
+    if (mockToggle && mockContent && mockIcon) {
       mockToggle.addEventListener('click', () => {
-        const isHidden = mockDetail.style.display === 'none';
-        mockDetail.style.display = isHidden ? 'block' : 'none';
-        mockToggle.querySelector('span:last-child').textContent = isHidden ? '▾' : '▸';
+        const isHidden = mockContent.style.display === 'none';
+        mockContent.style.display = isHidden ? 'block' : 'none';
+        mockIcon.className = isHidden ? 'bx bx-chevron-up' : 'bx bx-chevron-down';
       });
     }
 
-    // Dynamic scroll navbar styling
+    // 2. Navbar blur on scroll
     window.addEventListener('scroll', () => {
-      const header = document.querySelector('header.site-header');
-      if (window.scrollY > 40) {
-        header.style.boxShadow = '0 10px 30px rgba(0, 0, 0, 0.6)';
-        header.style.borderBottomColor = 'rgba(79, 142, 247, 0.2)';
+      const nav = document.getElementById('navbar');
+      if (window.scrollY > 30) {
+        nav.classList.add('scrolled');
       } else {
-        header.style.boxShadow = 'none';
-        header.style.borderBottomColor = 'var(--border)';
+        nav.classList.remove('scrolled');
       }
     });
+
+    // 3. GitHub API Live Release Check
+    async function fetchLatestRelease() {
+      try {
+        const res = await fetch('https://api.github.com/repos/nadeemmhdm/kenowa-extesions/releases/latest');
+        if (!res.ok) return;
+        const data = await res.json();
+        const tagName = data.tag_name || 'v2.18';
+        const zipUrl = data.zipball_url || `https://github.com/nadeemmhdm/kenowa-extesions/archive/refs/tags/${tagName}.zip`;
+
+        const navBtn = document.getElementById('nav-download-btn');
+        if (navBtn) {
+          navBtn.href = zipUrl;
+          navBtn.querySelector('span').textContent = `Download ${tagName}`;
+        }
+
+        const heroBtn = document.getElementById('hero-download-btn');
+        if (heroBtn) {
+          heroBtn.href = zipUrl;
+          heroBtn.querySelector('span').textContent = `Download Extension (${tagName} ZIP)`;
+        }
+      } catch (e) {
+        console.warn('GitHub release check fallback:', e);
+      }
+    }
+    fetchLatestRelease();
   </script>
 
 </body>
