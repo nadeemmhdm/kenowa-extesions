@@ -162,9 +162,11 @@ async function generateSelectionAnswer(text, config, history = [], options = {})
     const safeHistory = (Array.isArray(history) ? history : []).slice(-16).filter(turn =>
         turn && ['user', 'assistant'].includes(turn.role) && typeof turn.content === 'string'
     ).map(turn => ({ role: turn.role, content: turn.content.trim().slice(0, 8000) })).filter(turn => turn.content);
-    if (!['gemini', 'openrouter', 'ollama'].includes(provider)) throw new Error('No supported AI provider is selected in Kenowa settings.');
+    const isOllamaLocal = provider === 'ollama_local';
+    const isOllamaCloud = provider === 'ollama_cloud' || provider === 'ollama';
+    if (!['gemini', 'openrouter', 'ollama', 'ollama_local', 'ollama_cloud'].includes(provider)) throw new Error('No supported AI provider is selected in Kenowa settings.');
     if (!model) throw new Error('No model is selected. Open Kenowa Settings, choose a model, and save.');
-    if (!apiKey && provider !== 'ollama') throw new Error(`No ${provider} API key is saved for background selection requests. Open Kenowa Settings and save the key once.`);
+    if (!apiKey && !isOllamaLocal) throw new Error(`No ${isOllamaCloud ? 'Ollama Cloud' : provider} API key is saved for background selection requests. Open Kenowa Settings and save the key once.`);
 
     const controller = options.controller || new AbortController();
     const timeoutId = setTimeout(() => controller.abort('timeout'), 90000);
@@ -219,6 +221,10 @@ async function generateSelectionAnswer(text, config, history = [], options = {})
             headers['HTTP-Referer'] = 'https://kenowa.extension';
             headers['X-Title'] = 'Kenowa Extension';
             body = JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, ...providerHistory, { role: 'user', content: promptText }], stream: false });
+        } else if (isOllamaCloud) {
+            url = 'https://ollama.com/api/chat';
+            headers.Authorization = `Bearer ${apiKey}`;
+            body = JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, ...providerHistory, { role: 'user', content: promptText }], stream: false });
         } else {
             const ollamaBaseUrl = String(config?.ollamaUrl || 'http://localhost:11434').trim().replace(/\/+$/, '') || 'http://localhost:11434';
             url = `${ollamaBaseUrl}/api/chat`;
@@ -230,8 +236,11 @@ async function generateSelectionAnswer(text, config, history = [], options = {})
         try { response = await fetch(url, { method: 'POST', headers, body, signal: controller.signal }); }
         catch (error) {
             if (controller.signal.aborted) throw new Error(controller.signal.reason === 'user-stop' ? 'Stopped by you.' : 'The selected model did not reply within 90 seconds.');
-            if (provider === 'ollama') {
-                throw new Error(`Could not connect to Ollama at ${url}. Ensure Ollama is running locally ('ollama serve') and accessible. Network detail: ${error?.message || error}`);
+            if (isOllamaCloud) {
+                throw new Error(`Could not connect to Ollama Cloud at https://ollama.com/api/chat. Check your Ollama Cloud API key and internet access. Network detail: ${error?.message || error}`);
+            }
+            if (isOllamaLocal) {
+                throw new Error(`Could not connect to local Ollama at ${url}. Ensure Ollama is running ('ollama serve') and accessible. Network detail: ${error?.message || error}`);
             }
             throw new Error(`Could not reach ${provider}: ${error?.message || error}`);
         }

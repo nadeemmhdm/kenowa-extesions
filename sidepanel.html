@@ -168,7 +168,8 @@
         <select id="settings-provider-input" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:6px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
           <option value="gemini">Google Gemini</option>
           <option value="openrouter">OpenRouter</option>
-          <option value="ollama">Ollama (Local / Self-Hosted)</option>
+          <option value="ollama_local">Ollama (Local / Self-Hosted)</option>
+          <option value="ollama_cloud">Ollama Cloud (ollama.com)</option>
         </select>
         <!-- Provider hint line -->
         <p id="provider-hint" style="font-size:0.75rem;color:var(--accent);margin-bottom:14px;padding:8px 10px;background:var(--accent-subtle);border-radius:6px;line-height:1.45;"></p>
@@ -189,17 +190,26 @@
           </div>
         </div>
 
-        <div id="ollama-settings-group" class="provider-settings-group" style="display:none;">
-          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Ollama Endpoint URL</label>
+        <div id="ollama-local-settings-group" class="provider-settings-group" style="display:none;">
+          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Ollama Local Endpoint URL</label>
           <div style="position:relative;margin-bottom:12px;">
             <input type="text" id="settings-ollama-url-input" placeholder="http://localhost:11434" value="http://localhost:11434" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);font-family:monospace;font-size:0.84rem;">
-            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Default is <code>http://localhost:11434</code>. Run <code>ollama serve</code> or start the Ollama desktop app.</div>
+            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Default: <code>http://localhost:11434</code>. Run <code>ollama serve</code>. Zero API keys required!</div>
           </div>
 
-          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Ollama API Key (Optional)</label>
+          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Local API Key (Optional)</label>
           <div style="position:relative;margin-bottom:14px;">
-            <input type="password" id="settings-ollama-key-input" placeholder="Leave empty for local Ollama" style="width:100%;border:1px solid var(--border);padding:10px 36px 10px 10px;border-radius:6px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
-            <button data-key-toggle="settings-ollama-key-input" style="position:absolute;right:8px;top:10px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;">👁</button>
+            <input type="password" id="settings-ollama-local-key-input" placeholder="Leave empty for local Ollama" style="width:100%;border:1px solid var(--border);padding:10px 36px 10px 10px;border-radius:6px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
+            <button data-key-toggle="settings-ollama-local-key-input" style="position:absolute;right:8px;top:10px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;">👁</button>
+          </div>
+        </div>
+
+        <div id="ollama-cloud-settings-group" class="provider-settings-group" style="display:none;">
+          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Ollama Cloud API Key</label>
+          <div style="position:relative;margin-bottom:14px;">
+            <input type="password" id="settings-ollama-cloud-key-input" placeholder="Paste Ollama Cloud Key" style="width:100%;border:1px solid var(--border);padding:10px 36px 10px 10px;border-radius:6px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
+            <button data-key-toggle="settings-ollama-cloud-key-input" style="position:absolute;right:8px;top:10px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;">👁</button>
+            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Direct cloud access via <code>https://ollama.com/api</code>. Get your key at <a href="https://ollama.com" target="_blank" style="color:var(--accent);text-decoration:underline;">ollama.com</a>.</div>
           </div>
         </div>
 
@@ -220,14 +230,19 @@
             <option value="meta-llama/llama-3.1-8b-instruct:free">LLaMA 3.1 8B Free</option>
             <option value="mistralai/mistral-7b-instruct:free">Mistral 7B Free</option>
           </optgroup>
-          <optgroup label="Ollama (Local / Cloud)">
+          <optgroup label="Ollama (Local)">
             <option value="llama3.2:latest">LLaMA 3.2 (Local)</option>
             <option value="llama3.1:8b">LLaMA 3.1 8B (Local)</option>
             <option value="deepseek-r1:8b">DeepSeek R1 8B (Local)</option>
             <option value="qwen2.5-coder:7b">Qwen 2.5 Coder 7B (Local)</option>
             <option value="mistral:latest">Mistral 7B (Local)</option>
             <option value="phi3:latest">Phi 3 (Local)</option>
-            <option value="gpt-oss:120b-cloud">GPT-OSS 120B (Cloud)</option>
+          </optgroup>
+          <optgroup label="Ollama Cloud (ollama.com)">
+            <option value="gpt-oss:120b-cloud">GPT-OSS 120B Cloud</option>
+            <option value="deepseek-v3.1:671b-cloud">DeepSeek V3.1 Cloud</option>
+            <option value="qwen3-coder:480b-cloud">Qwen3 Coder Cloud</option>
+            <option value="gemma4:31b">Gemma 4 31B Cloud</option>
           </optgroup>
           </select>
           <button id="refresh-models-btn" class="secondary-btn model-refresh-btn" type="button" title="Load models available for this provider" aria-label="Refresh available models">↻</button>
