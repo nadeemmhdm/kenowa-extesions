@@ -25,106 +25,120 @@ function escapeHtml(str) {
 
 function parseMarkdown(text) {
     if (!text) return '';
-
-    // 1. Code Blocks (preserve content)
+    const source = String(text).replace(/\r\n?/g, '\n');
     const codeBlocks = [];
-    text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-        const placeholder = `@@CODEBLOCK${codeBlocks.length}@@`;
-        codeBlocks.push({ lang: lang || 'text', code });
-        return placeholder;
-    });
-
-    // 2. Inline Code (preserve content)
     const inlineCodeBlocks = [];
-    text = text.replace(/`([^`]+)`/g, (match, code) => {
-        const placeholder = `@@INLINECODE${inlineCodeBlocks.length}@@`;
+    let working = source.replace(/```([^\n]*)\n([\s\S]*?)```/g, (match, lang, code) => {
+        const token = `@@CODEBLOCK${codeBlocks.length}@@`;
+        codeBlocks.push({ lang: (lang || 'text').trim() || 'text', code });
+        return token;
+    });
+    working = working.replace(/`([^`\n]+)`/g, (match, code) => {
+        const token = `@@INLINECODE${inlineCodeBlocks.length}@@`;
         inlineCodeBlocks.push(code);
-        return placeholder;
+        return token;
     });
 
-    // 3. Headers
-    text = text.replace(/^### (.*)$/gm, '<h3>$1</h3>');
-    text = text.replace(/^## (.*)$/gm, '<h2>$1</h2>');
-    text = text.replace(/^# (.*)$/gm, '<h1>$1</h1>');
+    const formatTokens = [];
+    const tokenFor = html => {
+        const token = `@@FMT${formatTokens.length}@@`;
+        formatTokens.push(html);
+        return token;
+    };
+    const inline = value => {
+        let raw = String(value);
+        raw = raw.replace(/!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g, (_, label, url) => tokenFor(`<span class="md-image-label">${escapeHtml(label || 'Image')}</span>`));
+        raw = raw.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, (_, label, url) => tokenFor(`<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`));
+        raw = raw.replace(/\*\*\*(.+?)\*\*\*/g, (_, body) => tokenFor(`<strong><em>${inline(body)}</em></strong>`));
+        raw = raw.replace(/___(.+?)___/g, (_, body) => tokenFor(`<strong><em>${inline(body)}</em></strong>`));
+        raw = raw.replace(/<u>([\s\S]+?)<\/u>/gi, (_, body) => tokenFor(`<u>${inline(body)}</u>`));
+        raw = raw.replace(/\+\+([^+\n]+?)\+\+/g, (_, body) => tokenFor(`<u>${inline(body)}</u>`));
+        raw = raw.replace(/\*\*(.+?)\*\*/g, (_, body) => tokenFor(`<strong>${inline(body)}</strong>`));
+        raw = raw.replace(/__(.+?)__/g, (_, body) => tokenFor(`<strong>${inline(body)}</strong>`));
+        raw = raw.replace(/\*([^*\n]+?)\*/g, (_, body) => tokenFor(`<em>${escapeHtml(body)}</em>`));
+        raw = raw.replace(/(^|[^\w])_([^_\n]+?)_(?!\w)/g, (_, before, body) => `${before}${tokenFor(`<em>${escapeHtml(body)}</em>`)}`);
+        let html = escapeHtml(raw);
+        html = html.replace(/@@FMT(\d+)@@/g, (_, index) => formatTokens[Number(index)] || '');
+        return html;
+    };
 
-    // 4. Horizontal Rule
-    text = text.replace(/^---+$/gm, '<hr>');
-
-    // 5. Unordered Lists
-    text = text.replace(/^\s*[\-\*]\s+(.*)$/gm, '<ul><li>$1</li></ul>');
-    text = text.replace(/<\/ul>\s*<ul>/g, '');
-
-    // 6. Ordered Lists
-    text = text.replace(/^\s*\d+\.\s+(.*)$/gm, '<ol><li>$1</li></ol>');
-    text = text.replace(/<\/ol>\s*<ol>/g, '');
-
-    // 7. Bold / Italic
-    text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    text = text.replace(/__(.*?)__/g, '<strong>$1</strong>');
-    text = text.replace(/\*([^\s*][^*]*?)\*/g, '<em>$1</em>');
-    text = text.replace(/_([^\s_][^_]*?)_/g, '<em>$1</em>');
-
-    // 8. Restore Inline Code
-    inlineCodeBlocks.forEach((code, index) => {
-        const escaped = escapeHtml(code);
-        text = text.replace(`@@INLINECODE${index}@@`, `<code class="inline-code">${escaped}</code>`);
-    });
-
-    // 9. Restore Code Blocks
-    codeBlocks.forEach((block, index) => {
-        const language = block.lang;
-        
-        // Basic Syntax Highlighting Logic
-        let code = block.code;
-        const escapedCode = escapeHtml(code);
-        
-        // Apply basic regex-based highlighting to the escaped code
-        let highlighted = escapedCode;
-        
-        // Keywords (simple set)
+    const renderCodeBlock = block => {
+        let highlighted = escapeHtml(block.code);
         highlighted = highlighted.replace(/\b(const|let|var|function|return|if|else|for|while|import|export|class|async|await|try|catch|new|this|throw|null|undefined|true|false)\b/g, '<span class="code-kw">$1</span>');
-        
-        // Strings (double and single quotes)
         highlighted = highlighted.replace(/(&quot;.*?&quot;|&#039;.*?&#039;)/g, '<span class="code-str">$1</span>');
-        
-        // Comments (single line)
-        highlighted = highlighted.replace(/(\/\/.*?)<br>/g, '<span class="code-comment">$1</span><br>');
-        
-        // Numbers
         highlighted = highlighted.replace(/\b(\d+)\b/g, '<span class="code-num">$1</span>');
+        return `<div class="code-block-wrapper"><div class="code-header"><span class="code-lang">${escapeHtml(block.lang)}</span><button class="copy-code-btn" data-code="${encodeURIComponent(block.code)}"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg> Copy</button></div><pre><code class="language-${escapeHtml(block.lang)}">${highlighted}</code></pre></div>`;
+    };
 
-        // SECURITY: data-code stores encoded URI — safe for attribute
-        const encodedForAttr = encodeURIComponent(block.code);
-
-        const html = `
-            <div class="code-block-wrapper">
-                <div class="code-header">
-                    <span class="code-lang">${escapeHtml(language)}</span>
-                    <button class="copy-code-btn" data-code="${encodedForAttr}">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                        Copy
-                    </button>
-                </div>
-                <pre><code class="language-${escapeHtml(language)}">${highlighted}</code></pre>
-            </div>
-        `.trim();
-        text = text.replace(`@@CODEBLOCK${index}@@`, html);
-    });
-
-    // 10. Links — SECURITY: only allow http/https URLs
-    text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, (_, label, url) => {
-        return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
-    });
-
-    // 11. Newlines → <br>
-    text = text.replace(/\n/g, '<br>');
-    text = text.replace(/(<\/h[1-6]>|<\/ul>|<\/ol>|<\/li>|<\/p>)\s*<br>/g, '$1');
-    text = text.replace(/<br>\s*(<h[1-6]>|<ul>|<ol>|<li>|<p>)/g, '$1');
-
-    // 12. Blockquotes
-    text = text.replace(/^> (.*)$/gm, '<blockquote>$1</blockquote>');
-
-    return text;
+    const lines = working.split('\n');
+    const blocks = [];
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line.trim()) continue;
+        const codeMatch = line.match(/^@@CODEBLOCK(\d+)@@$/);
+        if (codeMatch) { blocks.push(renderCodeBlock(codeBlocks[Number(codeMatch[1])])); continue; }
+        const heading = line.match(/^\s{0,3}(#{1,6})\s+(.+?)\s*$/);
+        if (heading) { blocks.push(`<h${heading[1].length}>${inline(heading[2])}</h${heading[1].length}>`); continue; }
+        if (/^\s*(---+|\*\s*\*\s*\*|___+)\s*$/.test(line)) { blocks.push('<hr>'); continue; }
+        if (/^\s*[-*+]\s+/.test(line)) {
+            const items = [];
+            while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i])) items.push(`<li>${inline(lines[i].replace(/^\s*[-*+]\s+/, ''))}</li>`), i++;
+            i--; blocks.push(`<ul>${items.join('')}</ul>`); continue;
+        }
+        if (/^\s*\d+\.\s+/.test(line)) {
+            const items = [];
+            while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) items.push(`<li>${inline(lines[i].replace(/^\s*\d+\.\s+/, ''))}</li>`), i++;
+            i--; blocks.push(`<ol>${items.join('')}</ol>`); continue;
+        }
+        if (/^\s*>\s?/.test(line)) { blocks.push(`<blockquote>${inline(line.replace(/^\s*>\s?/, ''))}</blockquote>`); continue; }
+        if (line.includes('|') && i + 1 < lines.length && /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$/.test(lines[i + 1])) {
+            const splitRow = (r) => {
+                let trimmed = r.trim();
+                if (trimmed.startsWith('|')) trimmed = trimmed.slice(1);
+                if (trimmed.endsWith('|')) trimmed = trimmed.slice(0, -1);
+                return trimmed.split('|').map(c => c.trim());
+            };
+            const headerCells = splitRow(line);
+            const sepCells = splitRow(lines[i + 1]);
+            const alignments = sepCells.map(c => {
+                const left = c.startsWith(':');
+                const right = c.endsWith(':');
+                if (left && right) return 'center';
+                if (right) return 'right';
+                if (left) return 'left';
+                return '';
+            });
+            i += 2;
+            const rows = [];
+            while (i < lines.length && lines[i].trim() !== '' && lines[i].includes('|')) {
+                rows.push(splitRow(lines[i]));
+                i++;
+            }
+            i--;
+            let tableHtml = '<div class="table-container"><table class="markdown-table"><thead><tr>';
+            headerCells.forEach((c, idx) => {
+                const align = alignments[idx] ? ` style="text-align:${alignments[idx]}"` : '';
+                tableHtml += `<th${align}>${inline(c)}</th>`;
+            });
+            tableHtml += '</tr></thead><tbody>';
+            rows.forEach(row => {
+                tableHtml += '<tr>';
+                for (let cIdx = 0; cIdx < headerCells.length; cIdx++) {
+                    const c = row[cIdx] !== undefined ? row[cIdx] : '';
+                    const align = alignments[cIdx] ? ` style="text-align:${alignments[cIdx]}"` : '';
+                    tableHtml += `<td${align}>${inline(c)}</td>`;
+                }
+                tableHtml += '</tr>';
+            });
+            tableHtml += '</tbody></table></div>';
+            blocks.push(tableHtml);
+            continue;
+        }
+        blocks.push(inline(line));
+    }
+    let html = blocks.join('<br>');
+    inlineCodeBlocks.forEach((code, index) => { html = html.replaceAll(`@@INLINECODE${index}@@`, `<code class="inline-code">${escapeHtml(code)}</code>`); });
+    return html;
 }
 
 function formatDate(timestamp) {

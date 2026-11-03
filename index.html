@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kenowa AI — Premium Web Copilot & Study Assistant</title>
+  <meta name="description" content="Your private, multi-model AI assistant for the web. Powered by Google Gemini, OpenRouter, and Ollama with personal Capsule RAG and instant page insights.">
+  <meta name="keywords" content="AI browser extension, Kenowa AI, Chrome extension, Gemini, OpenRouter, Ollama, RAG, study assistant">
+  <meta property="og:title" content="Kenowa AI — Premium Web Copilot & Study Assistant">
+  <meta property="og:description" content="Private, multi-model AI assistant in your browser sidebar with custom document RAG and instant smart tools.">
+  <meta property="og:type" content="website">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-dark: #0a0a0f;
+      --bg-surface: #111118;
+      --bg-card: rgba(22, 22, 31, 0.75);
+      --bg-elevated: #1c1c28;
+      --accent: #4f8ef7;
+      --accent-glow: rgba(79, 142, 247, 0.35);
+      --accent-2: #7c6af7;
+      --text-main: #f0f0fa;
+      --text-sub: #94a3b8;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-bright: rgba(79, 142, 247, 0.3);
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 24px;
+      --radius-full: 9999px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Ambient background glows */
+    .ambient-glow {
+      position: fixed;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      filter: blur(140px);
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.35;
+    }
+    .glow-1 {
+      top: -150px;
+      left: 10%;
+      background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
+    }
+    .glow-2 {
+      top: 40%;
+      right: 5%;
+      background: radial-gradient(circle, var(--accent-2) 0%, transparent 70%);
+    }
+
+    /* Header / Nav */
+    header.site-header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(16px);
+      background: rgba(10, 10, 15, 0.8);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logo-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text-main);
+    }
+    .logo-img {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+    }
+    .logo-text {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      background: linear-gradient(90deg, #fff, #a5b4fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .nav-links {
+      display: flex;
+      gap: 28px;
+      align-items: center;
+    }
+    .nav-links a {
+      color: var(--text-sub);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover {
+      color: var(--text-main);
+    }
+    .btn-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 10px 20px;
+      border-radius: var(--radius-full);
+      text-decoration: none;
+      box-shadow: 0 4px 20px var(--accent-glow);
+      transition: transform 0.2s, box-shadow 0.2s;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+    .btn-cta:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 28px var(--accent-glow);
+    }
+
+    /* Hero Section */
+    section.hero {
+      position: relative;
+      z-index: 1;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 80px 24px 60px;
+      text-align: center;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      background: rgba(79, 142, 247, 0.1);
+      border: 1px solid var(--border-bright);
+      border-radius: var(--radius-full);
+      color: var(--accent);
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    .hero-title {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(2.5rem, 6vw, 4.2rem);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+      max-width: 900px;
+      margin: 0 auto 24px;
+    }
+    .hero-title span {
+      background: linear-gradient(135deg, #60a5fa, #a78bfa, #f472b6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-sub {
+      color: var(--text-sub);
+      font-size: clamp(1rem, 2vw, 1.25rem);
+      max-width: 680px;
+      margin: 0 auto 36px;
+    }
+    .hero-actions {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 50px;
+    }
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-card);
+      color: var(--text-main);
+      padding: 11px 22px;
+      border-radius: var(--radius-full);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+      border: 1px solid var(--border);
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .btn-secondary:hover {
+      background: var(--bg-elevated);
+      border-color: var(--border-bright);
+    }
+
+    /* Product Mockup Frame */
+    .mockup-wrapper {
+      max-width: 960px;
+      margin: 0 auto;
+      border-radius: var(--radius-lg);
+      padding: 10px;
+      background: linear-gradient(145deg, rgba(79, 142, 247, 0.2), rgba(124, 106, 247, 0.1));
+      border: 1px solid var(--border-bright);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.8), 0 0 50px var(--accent-glow);
+    }
+    .mockup-inner {
+      background: var(--bg-dark);
+      border-radius: calc(var(--radius-lg) - 6px);
+      padding: 24px;
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 24px;
+      text-align: left;
+    }
+    @media (max-width: 860px) {
+      .mockup-inner {
+        grid-template-columns: 1fr;
+      }
+    }
+    .mockup-browser-view {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: #0f1017;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .mockup-tab-bar {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .mockup-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.15);
+    }
+    .mockup-address {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.75rem;
+      color: var(--text-sub);
+    }
+    .mockup-sidepanel {
+      border: 1px solid var(--border-bright);
+      border-radius: var(--radius-md);
+      background: var(--bg-surface);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    }
+    .mockup-panel-header {
+      padding: 12px 16px;
+      background: rgba(10, 10, 15, 0.8);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .mockup-panel-body {
+      padding: 16px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .bubble-user {
+      align-self: flex-end;
+      background: rgba(79, 142, 247, 0.15);
+      border: 1px solid rgba(79, 142, 247, 0.3);
+      padding: 10px 14px;
+      border-radius: 16px 16px 4px 16px;
+      font-size: 0.85rem;
+      max-width: 85%;
+    }
+    .bubble-ai {
+      align-self: flex-start;
+      color: #e2e8f0;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+    .mockup-sources {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(22, 22, 31, 0.7);
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      color: var(--accent);
+      cursor: pointer;
+    }
+    .mockup-suggestions {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .mockup-chip {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-sub);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+    }
+    .mockup-input-bar {
+      margin-top: auto;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 10px 12px;
+      background: #151520;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .mockup-send {
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      display: grid;
+      place-items: center;
+      color: #fff;
+    }
+
+    /* Features Section */
+    section.features {
+      position: relative;
+      z-index: 1;
+      max-width: 1200px;
+      margin: 80px auto;
+      padding: 0 24px;
+    }
+    .section-kicker {
+      text-align: center;
+      color: var(--accent);
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(2rem, 4vw, 2.8rem);
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 50px;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+    }
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 28px;
+      transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s;
+      position: relative;
+      overflow: hidden;
+    }
+    .feature-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--border-bright);
+      box-shadow: 0 12px 35px rgba(0, 0, 0, 0.4), 0 0 25px var(--accent-glow);
+    }
+    .feature-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: rgba(79, 142, 247, 0.12);
+      border: 1px solid var(--border-bright);
+      display: grid;
+      place-items: center;
+      color: var(--accent);
+      margin-bottom: 18px;
+    }
+    .feature-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: var(--text-main);
+    }
+    .feature-desc {
+      color: var(--text-sub);
+      font-size: 0.92rem;
+      line-height: 1.55;
+    }
+
+    /* Footer */
+    footer.site-footer {
+      border-top: 1px solid var(--border);
+      padding: 50px 24px;
+      text-align: center;
+      color: var(--text-sub);
+      font-size: 0.88rem;
+    }
+    .footer-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .footer-links {
+      display: flex;
+      gap: 24px;
+    }
+    .footer-links a {
+      color: var(--text-sub);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .footer-links a:hover {
+      color: var(--text-main);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="nav-container">
+      <a href="#" class="logo-group">
+        <img src="logo.png" alt="Kenowa AI Logo" class="logo-img">
+        <span class="logo-text">Kenowa AI</span>
+      </a>
+      <nav class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#capsule">Capsule RAG</a>
+        <a href="https://github.com/nadeemmhdm/kenowa-extesions" target="_blank" rel="noopener">GitHub</a>
+        <a href="sidepanel.html" class="btn-cta">Add to Chrome</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="hero-badge">⚡ Next-Gen Web Copilot 2.17</div>
+    <h1 class="hero-title">Browse smarter with an <span>Elite AI Copilot</span> by your side.</h1>
+    <p class="hero-sub">Experience private, multi-model intelligence in your Chrome sidebar. Ask questions about any page, tap into your personal knowledge capsules, and master any subject in seconds.</p>
+    
+    <div class="hero-actions">
+      <a href="https://github.com/nadeemmhdm/kenowa-extesions" target="_blank" rel="noopener" class="btn-cta">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download Extension
+      </a>
+      <a href="#features" class="btn-secondary">
+        Explore Features ↓
+      </a>
+    </div>
+
+    <!-- Product Mockup -->
+    <div class="mockup-wrapper">
+      <div class="mockup-inner">
+        <div class="mockup-browser-view">
+          <div class="mockup-tab-bar">
+            <span class="mockup-dot"></span>
+            <span class="mockup-dot"></span>
+            <span class="mockup-dot"></span>
+            <span class="mockup-address">https://docs.software-design.org/patterns</span>
+          </div>
+          <div style="color: var(--text-sub); font-size: 0.85rem; line-height: 1.7;">
+            <h3 style="color: #fff; font-size: 1.1rem; margin-bottom: 8px;">Object-Oriented Design & Architectural Patterns</h3>
+            <p>Design patterns represent the best practices used by experienced object-oriented software developers. In this module, we examine creational, structural, and behavioral patterns for real-world application architectures...</p>
+          </div>
+        </div>
+
+        <div class="mockup-sidepanel">
+          <div class="mockup-panel-header">
+            <img src="logo.png" width="18" height="18" alt="Logo">
+            <span style="font-size: 0.85rem; font-weight: 700; color: #fff;">Kenowa 2.17</span>
+            <span style="margin-left: auto; font-size: 0.65rem; background: rgba(79,142,247,0.15); color: var(--accent); padding: 2px 6px; border-radius: 4px;">PRO</span>
+          </div>
+          <div class="mockup-panel-body">
+            <div class="bubble-user">Explain OOM/D three-phase process</div>
+            <div class="bubble-ai">
+              1. <strong>Object-Oriented Analysis (OOA)</strong><br>
+              2. <strong>Object-Oriented Design (OOD)</strong><br>
+              3. <strong>Implementation</strong>
+            </div>
+            <div class="mockup-sources">
+              <span>📚 Sources (1) — OOMD_Notes.md</span>
+              <span>▾</span>
+            </div>
+            <div class="mockup-suggestions">
+              <span class="mockup-chip">What are common design patterns?</span>
+              <span class="mockup-chip">How does OO modeling work?</span>
+            </div>
+            <div class="mockup-input-bar">
+              <span style="color: var(--text-sub); font-size: 0.78rem;">Message Kenowa or @mention...</span>
+              <div class="mockup-send">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="features" id="features">
+    <div class="section-kicker">Engineered for Excellence</div>
+    <h2 class="section-title">Everything you need in a modern AI Copilot</h2>
+
+    <div class="features-grid">
+      <!-- Feature 1 -->
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        </div>
+        <h3 class="feature-title">Capsule Knowledge RAG</h3>
+        <p class="feature-desc">Upload Markdown and text notes directly into local capsules. Kenowa automatically retrieves matched passages and displays collapsible, transparent source citations under each answer.</p>
+      </div>
+
+      <!-- Feature 2 -->
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+        <h3 class="feature-title">Multi-Model Freedom</h3>
+        <p class="feature-desc">Switch seamlessly between Google Gemini 2.0 Flash, OpenRouter (GPT-4o Mini, DeepSeek R1, LLaMA 3.1), and Ollama Cloud/Local. Your keys, your choice, zero lock-in.</p>
+      </div>
+
+      <!-- Feature 3 -->
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        </div>
+        <h3 class="feature-title">Study & Exam Copilot</h3>
+        <p class="feature-desc">Activate dedicated Study Buddy and Exam modes to analyze complex questions, verify multi-tab tests, and generate smart contextual follow-up chips with zero horizontal layout shift.</p>
+      </div>
+
+      <!-- Feature 4 -->
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <h3 class="feature-title">100% Local & Private</h3>
+        <p class="feature-desc">No middleman telemetry or server logging. Your API keys, chat history, and capsule files are encrypted and stored strictly inside your browser storage.</p>
+      </div>
+
+      <!-- Feature 5 -->
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        </div>
+        <h3 class="feature-title">Instant Web RAG & Actions</h3>
+        <p class="feature-desc">Scan any active webpage (Alt+S) to summarize, rewrite, translate, or extract insights without copying and pasting manually.</p>
+      </div>
+
+      <!-- Feature 6 -->
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+        <h3 class="feature-title">Modern Obsidian Dark UI</h3>
+        <p class="feature-desc">Designed with high-contrast typography, Syne headings, glassmorphic card depth, and responsive layouts that fit perfectly from 300px side panels to ultrawide displays.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="footer-content">
+      <div class="logo-group">
+        <img src="logo.png" alt="Kenowa AI Logo" width="24" height="24">
+        <span class="logo-text" style="font-size: 1rem;">Kenowa AI Assistant</span>
+      </div>
+      <p>© 2026 Kenowa AI. Built for high performance, privacy, and productivity.</p>
+      <div class="footer-links">
+        <a href="https://github.com/nadeemmhdm/kenowa-extesions" target="_blank" rel="noopener">GitHub Repository</a>
+        <a href="help.html">Setup Guide</a>
+        <a href="sidepanel.html">Launch Sidepanel</a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

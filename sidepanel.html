@@ -9,7 +9,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
   <script src="utils.js"></script>
-  <script src="puter.js"></script>
 </head>
 <body>
 
@@ -30,6 +29,10 @@
           </button>
         </div>
       </div>
+      <button id="new-chat-btn" class="sidebar-new-chat" title="Start a new chat">
+        <span class="sidebar-new-chat-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></span>
+        <span>New chat</span>
+      </button>
       <div id="folder-list" class="folder-list"></div>
       <div id="history-list" class="history-list"></div>
       <div class="sidebar-footer">
@@ -41,10 +44,6 @@
           <button id="lesson-retry-btn" class="footer-btn" title="Setup Guide">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
             Guide
-          </button>
-          <button id="bug-report-btn" class="footer-btn" title="Report a Bug">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a8 8 0 0 0-8 8v1a5 5 0 0 0 5 5h6a5 5 0 0 0 5-5v-1a8 8 0 0 0-8-8z"/><path d="M8 11h8"/><path d="M10 15v4a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2v-4"/><line x1="12" y1="2" x2="12" y2="7"/></svg>
-            Bug Report
           </button>
         </div>
       </div>
@@ -58,20 +57,13 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
           </button>
           <div class="brand-area">
-            <span class="brand-name">Kenowa 2.2</span>
+            <span class="brand-name">Kenowa 2.18</span>
             <img src="logo.png" alt="Logo" class="brand-logo">
             <span id="pro-badge" class="pro-badge hidden">PRO</span>
           </div>
         </div>
-        <div class="header-center">
-        </div>
+        <div class="header-center"></div>
         <div class="header-right">
-          <button id="export-chat-btn" class="icon-btn hidden" title="Export Chat">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-          </button>
-          <button id="new-chat-btn" class="icon-btn" title="New Chat">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-          </button>
         </div>
       </header>
 
@@ -80,7 +72,13 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 13l5 5 5-5M7 6l5 5 5-5"/></svg>
         </button>
         <div id="welcome-screen" class="welcome-screen">
+          <div class="welcome-kicker"><span class="kicker-mark" aria-hidden="true"></span> YOUR WEB COPILOT</div>
           <h1 class="greeting">Hi, what should we dive into today?</h1>
+          <p class="welcome-subtitle">Ask about the page you’re on, turn a rough thought into a plan, or bring your next question here.</p>
+          <div class="welcome-hints" aria-label="Keyboard shortcuts">
+            <span class="welcome-hint"><kbd>/</kbd> focus composer</span>
+            <span class="welcome-hint"><kbd>Shift</kbd><span class="hint-plus">+</span><kbd>Enter</kbd> new line</span>
+          </div>
         </div>
         <div id="messages-list" class="messages-list"></div>
         <div id="typing-indicator" class="typing-indicator hidden"></div>
@@ -143,10 +141,15 @@
 
   <!-- Settings Modal -->
   <div id="settings-modal" class="modal-overlay hidden">
-    <div class="modal-content" style="max-width:380px;text-align:left;max-height:90vh;overflow-y:auto;">
+    <div class="modal-content settings-modal-content">
       <div class="modal-header">
-        <h2>⚙️ Settings</h2>
-        <p style="color:var(--text-sub);font-size:0.82rem;margin-top:4px;">Settings are saved locally.</p>
+        <div>
+          <h2>⚙️ Settings</h2>
+          <p style="color:var(--text-sub);font-size:0.82rem;margin-top:4px;">Settings are saved locally.</p>
+        </div>
+        <button id="close-settings-btn" class="settings-close-btn" type="button" title="Close settings" aria-label="Close settings">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
       </div>
       <div class="modal-body">
         <label for="settings-provider-input" style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">AI Provider</label>
@@ -178,16 +181,9 @@
 
         <p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:18px;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px;">🔒 Keys are securely stored locally.</p>
 
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;padding:10px;background:rgba(245,166,35,0.06);border:1px solid rgba(245,166,35,0.2);border-radius:8px;">
-          <div>
-            <label for="settings-exam-delay-input" style="font-size:0.88rem;color:var(--text-main);font-weight:500;text-transform:none;letter-spacing:0;">Exam Mode 30m Delay</label>
-            <p style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">Wait 30 min before auto-submitting</p>
-          </div>
-          <input type="checkbox" id="settings-exam-delay-input" style="width:18px;height:18px;cursor:pointer;">
-        </div>
-
         <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Default AI Model</label>
-        <select id="settings-model-input" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:20px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
+        <div class="model-picker-row">
+          <select id="settings-model-input" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:6px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
           <optgroup label="Google Gemini">
             <option value="gemini-2.0-flash">Gemini 2.0 Flash ⚡</option>
             <option value="gemini-1.5-pro">Gemini 1.5 Pro 🧠</option>
@@ -205,7 +201,22 @@
             <option value="deepseek-v3.1:671b-cloud">DeepSeek V3.1</option>
             <option value="qwen3-coder:480b-cloud">Qwen3 Coder</option>
           </optgroup>
-        </select>
+          </select>
+          <button id="refresh-models-btn" class="secondary-btn model-refresh-btn" type="button" title="Load models available for this API key" aria-label="Refresh available models">↻</button>
+        </div>
+        <p id="models-status" class="models-status" role="status" aria-live="polite">Using built-in model list until a provider key is added.</p>
+
+        <section class="capsule-settings" aria-labelledby="capsule-heading">
+          <div class="capsule-heading-row">
+            <div>
+              <label id="capsule-heading" class="capsule-label">Capsule · Topic references</label>
+              <p class="capsule-help">Save up to 5 Markdown files. Kenowa will retrieve relevant sections for future answers.</p>
+            </div>
+            <button id="capsule-add-btn" class="secondary-btn capsule-add-btn" type="button">Add .md</button>
+          </div>
+          <input id="capsule-file-input" type="file" accept=".md,text/markdown,text/plain" multiple hidden>
+          <div id="capsule-list" class="capsule-list" aria-live="polite"></div>
+        </section>
 
         <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">AI Persona</label>
         <select id="settings-persona-input" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:20px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
@@ -215,22 +226,6 @@
           <option value="studybuddy">Study Buddy (Quiz Me)</option>
         </select>
 
-        <div style="border-top:1px solid var(--border); margin: 20px 0; padding-top: 20px;">
-          <h3 style="font-size:0.9rem; color:var(--accent); margin-bottom: 10px;">🔒 Secure Cloud Sync</h3>
-          <p style="font-size:0.75rem; color:var(--text-sub); margin-bottom:10px;">End-to-end encrypted backup to Chrome Sync. Requires a master password to encrypt chats before uploading.</p>
-          
-          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Master Sync Password</label>
-          <div style="position:relative;">
-            <input type="password" id="settings-sync-pass" placeholder="Create a strong password" style="width:100%;border:1px solid var(--border);padding:10px 36px 10px 10px;border-radius:6px;margin-bottom:10px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
-            <button data-key-toggle="settings-sync-pass" style="position:absolute;right:8px;top:10px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;">👁</button>
-          </div>
-          
-          <div style="display:flex; gap:10px;">
-            <button id="btn-sync-backup" class="primary-btn" style="flex:1; padding:10px; border-radius:6px; cursor:pointer; background:var(--accent); color:#fff; border:none; font-weight:600;">Backup to Cloud</button>
-            <button id="btn-sync-restore" class="primary-btn" style="flex:1; padding:10px; border-radius:6px; cursor:pointer; background:var(--bg-elevated); color:var(--text-main); border:1px solid var(--border); font-weight:600;">Restore Data</button>
-          </div>
-        </div>
-
         <button id="save-settings-btn" class="primary-btn" style="width:100%;padding:14px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-weight:600;font-size:0.95rem;cursor:pointer;margin-top:10px;transition:background 0.2s, transform 0.1s;">
           Save Settings
         </button>
@@ -239,9 +234,6 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
           Clear All Data
         </button>
-      </div>
-      <div class="modal-footer" style="margin-top:0;">
-        <button id="close-settings-btn" class="secondary-btn" style="width:100%;">Close</button>
       </div>
     </div>
   </div>
@@ -268,10 +260,11 @@
   <!-- Onboarding Lesson Modal -->
   <div id="lesson-modal" class="lesson-modal hidden">
     <div class="lesson-content">
-      <button class="skip-lesson-btn" id="lesson-skip-btn">Skip Setup</button>
+      <div class="lesson-eyebrow"><span id="lesson-step-kicker">KENOWA GUIDE</span><span id="lesson-progress">01 / 06</span></div>
       <div id="lesson-image" class="lesson-image-area"></div>
       <h2 id="lesson-title" class="lesson-title">Welcome to Kenowa AI</h2>
       <p id="lesson-text" class="lesson-text">Let's get you set up with the best AI model.</p>
+      <button class="skip-lesson-btn" id="lesson-skip-btn">Skip Setup</button>
       <div class="lesson-navigation">
         <div id="lesson-dots" class="lesson-dots"></div>
         <div class="lesson-btn-group">
@@ -345,22 +338,6 @@
   <div id="session-indicator" class="session-indicator hidden">
     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
     <span>Session chat — not saved</span>
-  </div>
-
-  <!-- Access Code Modal -->
-  <div id="access-modal" class="access-modal">
-    <div class="access-modal-content">
-      <div class="access-lock-icon">
-        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-      </div>
-      <h2 class="access-modal-title">Access Required</h2>
-      <p class="access-modal-sub">This extension is restricted. Please enter the access code to continue.</p>
-      <div class="access-input-group">
-        <input type="password" id="access-code-input" placeholder="Enter access code" autocomplete="off">
-      </div>
-      <button id="access-submit-btn" class="access-submit-btn">Submit</button>
-      <p id="access-error" class="access-error hidden">Invalid code. Contact admin.</p>
-    </div>
   </div>
 
   <script src="sidepanel.js"></script>

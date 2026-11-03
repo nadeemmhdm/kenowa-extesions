@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kenowa UI & Capsule Verification Preview</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    .preview-stage {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 28px;
+      padding: 24px;
+      background: #050508;
+      min-height: 100vh;
+      box-sizing: border-box;
+      justify-content: center;
+      align-items: flex-start;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .preview-panel-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .preview-label {
+      color: #94a3b8;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .preview-frame {
+      height: 720px;
+      border: 1px solid rgba(79, 142, 247, 0.35);
+      border-radius: 16px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+      background: var(--bg-dark);
+    }
+    .preview-mobile { width: 320px; }
+    .preview-sidepanel { width: 360px; }
+    .preview-desktop { width: 520px; }
+  </style>
+  <script src="utils.js"></script>
+</head>
+<body style="overflow: auto; height: auto;">
+
+  <div class="preview-stage">
+
+    <!-- Mobile view: 320px -->
+    <div class="preview-panel-wrap">
+      <div class="preview-label">📱 Mobile Screen (320px)</div>
+      <div class="preview-frame preview-mobile">
+        <div class="app-container">
+          <main class="chat-interface">
+            <header class="chat-header">
+              <div class="header-left">
+                <button class="icon-btn" title="Menu">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                </button>
+                <div class="brand-area">
+                  <span class="brand-name">Kenowa 2.17</span>
+                  <img src="logo.png" alt="Logo" class="brand-logo">
+                </div>
+              </div>
+            </header>
+            <div class="chat-container">
+              <div class="messages-list">
+                <div class="message user">What is Object_Oriented_Modeling_and_Design_Patterns</div>
+                <div class="message ai" id="ai-msg-1"></div>
+                <div class="suggestions-container" id="sug-1"></div>
+              </div>
+            </div>
+            <div class="input-card-container">
+              <div class="input-card">
+                <textarea placeholder="Message Kenowa or @mention a tab" rows="1"></textarea>
+                <div class="input-footer">
+                  <div class="left-controls">
+                    <button class="icon-btn-small" title="Exam Mode"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></button>
+                    <button class="icon-btn-small" title="Solve Question"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
+                    <button class="icon-btn-small" title="Scan Webpage"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></button>
+                  </div>
+                  <div class="right-controls">
+                    <button class="send-btn" title="Send">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidepanel view: 360px (Exact screenshot size) -->
+    <div class="preview-panel-wrap">
+      <div class="preview-label">💻 Extension Sidepanel (360px)</div>
+      <div class="preview-frame preview-sidepanel">
+        <div class="app-container">
+          <main class="chat-interface">
+            <header class="chat-header">
+              <div class="header-left">
+                <button class="icon-btn" title="Menu">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                </button>
+                <div class="brand-area">
+                  <span class="brand-name">Kenowa 2.17</span>
+                  <img src="logo.png" alt="Logo" class="brand-logo">
+                </div>
+              </div>
+            </header>
+            <div class="chat-container">
+              <div class="messages-list">
+                <div class="message user">What is Object_Oriented_Modeling_and_Design_Patterns</div>
+                <div class="message ai" id="ai-msg-2"></div>
+                <div class="suggestions-container" id="sug-2"></div>
+              </div>
+            </div>
+            <div class="input-card-container">
+              <div class="input-card">
+                <textarea placeholder="Message Kenowa or @mention a tab" rows="1"></textarea>
+                <div class="input-footer">
+                  <div class="left-controls">
+                    <button class="icon-btn-small" title="Exam Mode"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></button>
+                    <button class="icon-btn-small" title="Solve Question"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
+                    <button class="icon-btn-small" title="Scan Webpage"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></button>
+                  </div>
+                  <div class="right-controls">
+                    <button class="send-btn" title="Send">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+
+    <!-- Desktop view: 520px -->
+    <div class="preview-panel-wrap">
+      <div class="preview-label">🖥️ Expanded View (520px)</div>
+      <div class="preview-frame preview-desktop">
+        <div class="app-container">
+          <main class="chat-interface">
+            <header class="chat-header">
+              <div class="header-left">
+                <button class="icon-btn" title="Menu">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                </button>
+                <div class="brand-area">
+                  <span class="brand-name">Kenowa 2.17</span>
+                  <img src="logo.png" alt="Logo" class="brand-logo">
+                </div>
+              </div>
+            </header>
+            <div class="chat-container">
+              <div class="messages-list">
+                <div class="message user">What is Object_Oriented_Modeling_and_Design_Patterns</div>
+                <div class="message ai" id="ai-msg-3"></div>
+                <div class="suggestions-container" id="sug-3"></div>
+              </div>
+            </div>
+            <div class="input-card-container">
+              <div class="input-card">
+                <textarea placeholder="Message Kenowa or @mention a tab" rows="1"></textarea>
+                <div class="input-footer">
+                  <div class="left-controls">
+                    <button class="icon-btn-small" title="Exam Mode"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></button>
+                    <button class="icon-btn-small" title="Solve Question"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
+                    <button class="icon-btn-small" title="Scan Webpage"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></button>
+                  </div>
+                  <div class="right-controls">
+                    <button class="send-btn" title="Send">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const sampleAiResponse = `Object-Oriented Modeling and Design Patterns (OOM&DP) is the discipline that guides you from an abstract problem description to a concrete, maintainable implementation — but it does it by thinking in “objects” and by re-using proven design solutions (design patterns).
+
+---
+
+1. Object-Oriented Modeling & Design (OOM/D)
+
+| Aspect | What the course material says | What it means for you |
+|--------|-------------------------------|-----------------------|
+| Three phase process | "OOM is a three phase process: 1. Object-oriented analysis (OOA), 2. Object-oriented design (OOD), 3. Implementation" | You start by analyzing what objects exist and what they do, then you design a solution using principles. |
+| Core Philosophy | Build systems around domain objects | High maintainability and reusability |
+`;
+
+    const sampleSources = [
+      {
+        name: 'OOMD_Course_Notes.md',
+        snippet: 'OOM is a three phase process: 1. Object-oriented analysis (OOA), 2. Object-oriented design (OOD), 3. Implementation. Modeling is the discipline that guides you...'
+      }
+    ];
+
+    const sampleSuggestions = [
+      'What are common design patterns?',
+      'How does OO modeling work?',
+      'What are behavioral patterns?',
+      'How to start with OOM & DP?'
+    ];
+
+    function renderSourcesSectionInMsg(parentMsgDiv, sources) {
+      if (!parentMsgDiv || !sources || !sources.length) return;
+      const container = document.createElement('div');
+      container.className = 'capsule-sources-container';
+      const toggleBtn = document.createElement('button');
+      toggleBtn.className = 'capsule-sources-toggle';
+      toggleBtn.type = 'button';
+      toggleBtn.setAttribute('aria-expanded', 'false');
+      toggleBtn.innerHTML = \`
+        <span class="capsule-sources-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        </span>
+        <span class="capsule-sources-title">Sources (\${sources.length})</span>
+        <span class="capsule-sources-chevron">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </span>
+      \`;
+      const bodyDiv = document.createElement('div');
+      bodyDiv.className = 'capsule-sources-body hidden';
+      sources.forEach(src => {
+        const item = document.createElement('div');
+        item.className = 'capsule-source-item';
+        item.innerHTML = \`
+          <div class="capsule-source-header">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span class="capsule-source-name">\${src.name}</span>
+          </div>
+          <div class="capsule-source-snippet">\${src.snippet}...</div>
+        \`;
+        bodyDiv.appendChild(item);
+      });
+      toggleBtn.addEventListener('click', () => {
+        const isCollapsed = bodyDiv.classList.contains('hidden');
+        if (isCollapsed) {
+          bodyDiv.classList.remove('hidden');
+          toggleBtn.classList.add('expanded');
+          toggleBtn.setAttribute('aria-expanded', 'true');
+        } else {
+          bodyDiv.classList.add('hidden');
+          toggleBtn.classList.remove('expanded');
+          toggleBtn.setAttribute('aria-expanded', 'false');
+        }
+      });
+      container.appendChild(toggleBtn);
+      container.appendChild(bodyDiv);
+      parentMsgDiv.appendChild(container);
+    }
+
+    function renderSug(container, suggestions) {
+      const grid = document.createElement('div');
+      grid.className = 'suggestions-grid';
+      suggestions.forEach(t => {
+        const chip = document.createElement('button');
+        chip.className = 'suggestion-chip';
+        chip.type = 'button';
+        chip.textContent = t;
+        grid.appendChild(chip);
+      });
+      container.appendChild(grid);
+    }
+
+    const html = parseMarkdown(sampleAiResponse);
+    [1, 2, 3].forEach(idx => {
+      const msg = document.getElementById('ai-msg-' + idx);
+      msg.innerHTML = html;
+      renderSourcesSectionInMsg(msg, sampleSources);
+      renderSug(document.getElementById('sug-' + idx), sampleSuggestions);
+    });
+
+    // Verification check badge
+    window.addEventListener('load', () => {
+      document.querySelectorAll('.preview-panel-wrap').forEach(wrap => {
+        const frame = wrap.querySelector('.preview-frame');
+        const sendBtn = wrap.querySelector('.send-btn');
+        const frameRect = frame.getBoundingClientRect();
+        const btnRect = sendBtn.getBoundingClientRect();
+        const isSendBtnVisible = btnRect.right <= frameRect.right + 1 && btnRect.left >= frameRect.left;
+        const appContainer = wrap.querySelector('.app-container');
+        const noHorizontalScroll = appContainer.scrollWidth <= appContainer.clientWidth;
+
+        const badge = document.createElement('div');
+        badge.style.cssText = 'margin-top: 6px; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; text-align: center;';
+        if (isSendBtnVisible && noHorizontalScroll) {
+          badge.style.background = 'rgba(62, 207, 142, 0.15)';
+          badge.style.color = '#3ecf8e';
+          badge.style.border = '1px solid rgba(62, 207, 142, 0.3)';
+          badge.textContent = `✓ No Overflow • Suggestions, Send Button & Sources Fully Visible`;
+        } else {
+          badge.style.background = 'rgba(242, 92, 92, 0.15)';
+          badge.style.color = '#f25c5c';
+          badge.style.border = '1px solid rgba(242, 92, 92, 0.3)';
+          badge.textContent = '✗ Overflow Detected';
+        }
+        wrap.appendChild(badge);
+      });
+    });
+  </script>
+</body>
+</html>
