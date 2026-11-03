@@ -7,11 +7,15 @@ const BASE_URL  = "https://generativelanguage.googleapis.com/v1beta/models/";
 const MODEL_QUICK = "gemini-2.0-flash";
 const MODEL_DEEP  = "gemini-1.5-pro";
 const MODEL_IMAGE = "gemini-2.0-flash-exp";
-const APP_VERSION = "2.17.0";
+const APP_VERSION = "2.18.0";
 
 function providerModelKey(provider) { return `kenowa_model_${provider}`; }
+function getOllamaBaseUrl() {
+    const raw = localStorage.getItem('kenowa_ollama_url') || 'http://localhost:11434';
+    return raw.trim().replace(/\/+$/, '') || 'http://localhost:11434';
+}
 function defaultModelForProvider(provider) {
-    return provider === 'openrouter' ? 'openai/gpt-4o-mini' : provider === 'ollama' ? 'gpt-oss:120b-cloud' : MODEL_QUICK;
+    return provider === 'openrouter' ? 'openai/gpt-4o-mini' : provider === 'ollama' ? 'llama3.2:latest' : MODEL_QUICK;
 }
 function getSavedModelForProvider(provider) {
     const specific = localStorage.getItem(providerModelKey(provider));
@@ -33,6 +37,7 @@ function getSelectedAIConfig() {
         provider,
         model: getSavedModelForProvider(provider),
         apiKey: localStorage.getItem(providerKeyName(provider)) || '',
+        ollamaUrl: getOllamaBaseUrl(),
         capsules: typeof getCapsules === 'function' ? getCapsules() : []
     };
 }
@@ -636,6 +641,7 @@ async function syncProviderConfigToBackground() {
     const config = {
         provider: selected.provider,
         model: selected.model,
+        ollamaUrl: getOllamaBaseUrl(),
         keys: {
             gemini: localStorage.getItem('kenowa_api_key') || '',
             openrouter: localStorage.getItem('kenowa_openrouter_key') || '',
@@ -680,20 +686,42 @@ function normalizeProviderModels(provider, data) {
 }
 
 async function discoverProviderModels(provider, apiKey) {
-    if (!apiKey) throw new Error('Add this provider’s API key first.');
+    if (provider !== 'ollama' && !apiKey) throw new Error('Add this provider’s API key first.');
     let url;
     const headers = { 'Content-Type': 'application/json' };
-    if (provider === 'gemini') url = `${BASE_URL}?key=${encodeURIComponent(apiKey)}`;
-    else if (provider === 'openrouter') { url = 'https://openrouter.ai/api/v1/models'; headers.Authorization = `Bearer ${apiKey}`; }
-    else { url = 'https://ollama.com/api/tags'; headers.Authorization = `Bearer ${apiKey}`; }
-    const response = await fetch(url, { headers });
+    if (provider === 'gemini') {
+        url = `${BASE_URL}?key=${encodeURIComponent(apiKey)}`;
+    } else if (provider === 'openrouter') {
+        url = 'https://openrouter.ai/api/v1/models';
+        headers.Authorization = `Bearer ${apiKey}`;
+    } else {
+        const baseUrl = getOllamaBaseUrl();
+        url = `${baseUrl}/api/tags`;
+        if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+    }
+    let response;
+    try {
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 8000);
+        response = await fetch(url, { headers, signal: ctrl.signal });
+        clearTimeout(tid);
+    } catch (err) {
+        if (provider === 'ollama') {
+            const baseUrl = getOllamaBaseUrl();
+            throw new Error(`Could not connect to Ollama at ${baseUrl}. Ensure Ollama is running ('ollama serve') and accessible.`);
+        }
+        throw err;
+    }
     if (!response.ok) {
         let detail = `Provider returned ${response.status}`;
         try { detail = (await response.json()).error?.message || detail; } catch (_) {}
         throw new Error(detail);
     }
     const models = normalizeProviderModels(provider, await response.json());
-    if (!models.length) throw new Error('No generation models were returned for this key.');
+    if (!models.length) {
+        if (provider === 'ollama') throw new Error('Ollama is running, but no local models were found. Run: ollama pull llama3.2');
+        throw new Error('No generation models were returned for this key.');
+    }
     return saveProviderModels(provider, models);
 }
 
@@ -709,7 +737,7 @@ function renderProviderModels(provider, selectedModel) {
     const modelToPreserve = String(selectedModel || getSavedModelForProvider(provider) || defaultModelForProvider(provider));
     select.replaceChildren();
     const group = document.createElement('optgroup');
-    group.label = `${provider === 'openrouter' ? 'OpenRouter' : provider === 'ollama' ? 'Ollama Cloud' : 'Google Gemini'} · Available models`;
+    group.label = `${provider === 'openrouter' ? 'OpenRouter' : provider === 'ollama' ? 'Ollama (Local / Cloud)' : 'Google Gemini'} · Available models`;
     let selectedFound = false;
     (cached?.models || []).forEach(model => {
         const option = document.createElement('option');
@@ -736,7 +764,7 @@ function renderProviderModels(provider, selectedModel) {
 }
 
 async function refreshProviderModels(provider, apiKey, selectedModel) {
-    setModelsStatus('Loading models available for this key…', 'loading');
+    setModelsStatus(provider === 'ollama' ? 'Connecting to local Ollama…' : 'Loading models available for this key…', 'loading');
     const button = document.getElementById('refresh-models-btn');
     if (button) button.disabled = true;
     try {
@@ -744,11 +772,33 @@ async function refreshProviderModels(provider, apiKey, selectedModel) {
         if ((document.getElementById('settings-provider-input')?.value || localStorage.getItem('kenowa_provider')) === provider) {
             renderProviderModels(provider, getSavedModelForProvider(provider) || selectedModel || '');
         }
-        setModelsStatus(`${payload.models.length} models available for this key`, 'ready');
+        setModelsStatus(`${payload.models.length} models available for this provider`, 'ready');
     } catch (error) {
         setModelsStatus(`Could not load models: ${error.message}`, 'error');
         showToast(`Model discovery failed: ${error.message}`, 'error');
     } finally { if (button) button.disabled = false; }
+}
+
+function updateProviderUI() {
+    const provider = document.getElementById('settings-provider-input')?.value || localStorage.getItem('kenowa_provider') || 'gemini';
+    const geminiGroup = document.getElementById('gemini-settings-group');
+    const openrouterGroup = document.getElementById('openrouter-settings-group');
+    const ollamaGroup = document.getElementById('ollama-settings-group');
+    const hint = document.getElementById('provider-hint');
+
+    if (geminiGroup) geminiGroup.style.display = provider === 'gemini' ? 'block' : 'none';
+    if (openrouterGroup) openrouterGroup.style.display = provider === 'openrouter' ? 'block' : 'none';
+    if (ollamaGroup) ollamaGroup.style.display = provider === 'ollama' ? 'block' : 'none';
+
+    if (hint) {
+        if (provider === 'gemini') {
+            hint.innerHTML = '⚡ <strong>Google Gemini:</strong> Fast multimodal reasoning. Requires free API key from Google AI Studio.';
+        } else if (provider === 'openrouter') {
+            hint.innerHTML = '🌐 <strong>OpenRouter:</strong> Multi-model hub (Claude 3.5, GPT-4o, DeepSeek R1). Requires OpenRouter key.';
+        } else if (provider === 'ollama') {
+            hint.innerHTML = '💻 <strong>Local Ollama:</strong> 100% private & offline. Connects to your local Ollama server (default: <code>http://localhost:11434</code>). No API key needed for local models.';
+        }
+    }
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -828,6 +878,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const keyInput = document.getElementById('settings-key-input');
     const openRouterKeyInput = document.getElementById('settings-openrouter-key-input');
     const ollamaKeyInput = document.getElementById('settings-ollama-key-input');
+    const ollamaUrlInput = document.getElementById('settings-ollama-url-input');
     const modelInput = document.getElementById('settings-model-input');
     const capsuleAddButton = document.getElementById('capsule-add-btn');
     const capsuleFileInput = document.getElementById('capsule-file-input');
@@ -842,6 +893,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (keyInput) keyInput.value = localStorage.getItem('kenowa_api_key') || '';
         if (openRouterKeyInput) openRouterKeyInput.value = localStorage.getItem('kenowa_openrouter_key') || '';
         if (ollamaKeyInput) ollamaKeyInput.value = localStorage.getItem('kenowa_ollama_key') || '';
+        if (ollamaUrlInput) ollamaUrlInput.value = localStorage.getItem('kenowa_ollama_url') || 'http://localhost:11434';
+        updateProviderUI();
         const selectedProvider = providerInput?.value || 'gemini';
         const savedModel = getSavedModelForProvider(selectedProvider);
         if (modelInput) modelInput.value = savedModel;
@@ -856,8 +909,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const provider = providerInput?.value || 'gemini';
         const keyInputForProvider = document.getElementById(providerKeyInputId(provider));
         const key = keyInputForProvider?.value.trim() || '';
-        if (!key) { setModelsStatus('Add this provider’s API key to load its available models.', 'error'); return; }
-        localStorage.setItem(providerKeyName(provider), key);
+        if (provider !== 'ollama' && !key) {
+            setModelsStatus('Add this provider’s API key to load its available models.', 'error');
+            return;
+        }
+        if (key) localStorage.setItem(providerKeyName(provider), key);
+        if (provider === 'ollama' && ollamaUrlInput) {
+            localStorage.setItem('kenowa_ollama_url', (ollamaUrlInput.value.trim() || 'http://localhost:11434').replace(/\/+$/, ''));
+        }
         refreshProviderModels(provider, key, modelInput?.value || '');
     };
     if (refreshModelsBtn) refreshModelsBtn.addEventListener('click', refreshModelsForCurrentProvider);
@@ -865,13 +924,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         const provider = providerInput.value;
         const savedModel = getSavedModelForProvider(provider);
         localStorage.setItem('kenowa_provider', provider);
+        updateProviderUI();
         if (modelInput) modelInput.value = savedModel;
         renderProviderModels(provider, savedModel);
         persistSelectedModel(provider, savedModel);
         syncProviderConfigToBackground().catch(error => showToast(`Could not sync selected provider: ${error.message}`, 'error'));
-        const key = document.getElementById(providerKeyInputId(provider))?.value.trim();
-        if (key) refreshProviderModels(provider, key, savedModel);
-        else setModelsStatus('Add this provider’s API key to load its available models.');
+        const key = document.getElementById(providerKeyInputId(provider))?.value.trim() || '';
+        if (provider === 'ollama') {
+            refreshProviderModels('ollama', key, savedModel);
+        } else if (key) {
+            refreshProviderModels(provider, key, savedModel);
+        } else {
+            setModelsStatus('Add this provider’s API key to load its available models.');
+        }
     });
     if (modelInput) modelInput.addEventListener('change', async () => {
         if (!modelInput.value) return;
@@ -902,6 +967,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (keyInput) localStorage.setItem('kenowa_api_key', keyInput.value);
         if (openRouterKeyInput) localStorage.setItem('kenowa_openrouter_key', openRouterKeyInput.value);
         if (ollamaKeyInput) localStorage.setItem('kenowa_ollama_key', ollamaKeyInput.value);
+        if (ollamaUrlInput) localStorage.setItem('kenowa_ollama_url', (ollamaUrlInput.value.trim() || 'http://localhost:11434').replace(/\/+$/, ''));
         const selectedProvider = providerInput?.value || 'gemini';
         if (modelInput) persistSelectedModel(selectedProvider, modelInput.value);
         if (personaSelector) localStorage.setItem('kenowa_persona', personaSelector.value);
@@ -1389,14 +1455,20 @@ async function handleSend(textOverride=null) {
             const aiMessage=sm.finalize(retrievedSources);
             if (!isExamMode && !isSQMode) setTimeout(() => getAISuggestions(text, aiMessage), 500);
         } else if(provider==='ollama'){
-            if(!apiKey){ appendMessage('ai','⚙️ No Ollama API Key found. Open Settings to add one.'); return; }
             const ollamaImages=imagesToSend.map(img=>img.split(',')[1]).filter(Boolean);
-            url='https://ollama.com/api/chat';
+            const ollamaBaseUrl=getOllamaBaseUrl();
+            url=`${ollamaBaseUrl}/api/chat`;
             body=JSON.stringify({model,messages:[{role:'system',content:sysPrompt},{role:'user',content:text||"Analyze this image",...(ollamaImages.length?{images:ollamaImages}:{})}],stream:true});
-            headers['Authorization']=`Bearer ${apiKey}`;
+            if(apiKey) headers['Authorization']=`Bearer ${apiKey}`;
             const sm=appendMessageStream(lockedChatId); hideTypingIndicator();
-            const response=await fetch(url,{method:'POST',headers,body,signal:requestController.signal});
-            if(!response.ok){ let e=`API error ${response.status}`; try{const ed=await response.json();e=ed.error?.message||JSON.stringify(ed);}catch(_){} throw new Error(e); }
+            let response;
+            try {
+                response=await fetch(url,{method:'POST',headers,body,signal:requestController.signal});
+            } catch(netErr) {
+                if(requestController.signal.aborted) throw netErr;
+                throw new Error(`Could not connect to Ollama at ${ollamaBaseUrl}. Make sure Ollama is running ('ollama serve') on your machine.`);
+            }
+            if(!response.ok){ let e=`Ollama error ${response.status}`; try{const ed=await response.json();e=ed.error?.message||ed.error||JSON.stringify(ed);}catch(_){} throw new Error(e); }
             const reader=response.body.getReader(); const dec=new TextDecoder(); let buf='';
             while(true){
                 const {done,value}=await reader.read(); if(done) break;
@@ -1653,10 +1725,15 @@ async function apiGenerateText(prompt) {
     if (capsuleContext) prompt = `${prompt}\n\n${capsuleContext}`;
     const {provider,model,apiKey}=getSelectedAIConfig();
     let url,body,headers={'Content-Type':'application/json'};
-    if(!apiKey) throw new Error(`No ${provider} API key is saved. Add the key in Settings to use Solve Question and Exam Mode.`);
+    if(!apiKey && provider !== 'ollama') throw new Error(`No ${provider} API key is saved. Add the key in Settings to use Solve Question and Exam Mode.`);
     if(provider==='gemini'){ url=`${BASE_URL}${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`; body=JSON.stringify({contents:[{parts:[{text:prompt}]}]}); }
     else if(provider==='openrouter'){ url='https://openrouter.ai/api/v1/chat/completions'; body=JSON.stringify({model,messages:[{role:'user',content:prompt}]}); headers['Authorization']=`Bearer ${apiKey}`; headers['HTTP-Referer']='https://kenowa.extension'; headers['X-Title']='Kenowa Extension'; }
-    else if(provider==='ollama'){ url='https://ollama.com/api/chat'; body=JSON.stringify({model,messages:[{role:'user',content:prompt}],stream:false}); headers['Authorization']=`Bearer ${apiKey}`; }
+    else if(provider==='ollama'){
+        const ollamaBaseUrl = getOllamaBaseUrl();
+        url=`${ollamaBaseUrl}/api/chat`;
+        body=JSON.stringify({model,messages:[{role:'user',content:prompt}],stream:false});
+        if(apiKey) headers['Authorization']=`Bearer ${apiKey}`;
+    }
     else throw new Error(`Unsupported AI provider: ${provider}`);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 90000);
@@ -1673,6 +1750,7 @@ async function apiGenerateText(prompt) {
         if(provider==='ollama') return data.message?.content?.trim()||null;
     } catch(error){
         if(controller.signal.aborted) throw new Error(`The selected ${provider} model (${model}) did not respond within 90 seconds.`);
+        if(provider==='ollama') throw new Error(`Could not connect to Ollama at ${getOllamaBaseUrl()}. Ensure Ollama is running ('ollama serve') and accessible.`);
         throw error;
     } finally { clearTimeout(timeoutId); }
 }

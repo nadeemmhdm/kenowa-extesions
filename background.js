@@ -164,7 +164,7 @@ async function generateSelectionAnswer(text, config, history = [], options = {})
     ).map(turn => ({ role: turn.role, content: turn.content.trim().slice(0, 8000) })).filter(turn => turn.content);
     if (!['gemini', 'openrouter', 'ollama'].includes(provider)) throw new Error('No supported AI provider is selected in Kenowa settings.');
     if (!model) throw new Error('No model is selected. Open Kenowa Settings, choose a model, and save.');
-    if (!apiKey) throw new Error(`No ${provider} API key is saved for background selection requests. Open Kenowa Settings and save the key once.`);
+    if (!apiKey && provider !== 'ollama') throw new Error(`No ${provider} API key is saved for background selection requests. Open Kenowa Settings and save the key once.`);
 
     const controller = options.controller || new AbortController();
     const timeoutId = setTimeout(() => controller.abort('timeout'), 90000);
@@ -220,8 +220,9 @@ async function generateSelectionAnswer(text, config, history = [], options = {})
             headers['X-Title'] = 'Kenowa Extension';
             body = JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, ...providerHistory, { role: 'user', content: promptText }], stream: false });
         } else {
-            url = 'https://ollama.com/api/chat';
-            headers.Authorization = `Bearer ${apiKey}`;
+            const ollamaBaseUrl = String(config?.ollamaUrl || 'http://localhost:11434').trim().replace(/\/+$/, '') || 'http://localhost:11434';
+            url = `${ollamaBaseUrl}/api/chat`;
+            if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
             body = JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, ...providerHistory, { role: 'user', content: promptText }], stream: false });
         }
 
@@ -230,7 +231,7 @@ async function generateSelectionAnswer(text, config, history = [], options = {})
         catch (error) {
             if (controller.signal.aborted) throw new Error(controller.signal.reason === 'user-stop' ? 'Stopped by you.' : 'The selected model did not reply within 90 seconds.');
             if (provider === 'ollama') {
-                throw new Error(`Could not connect to Ollama Cloud at https://ollama.com/api/chat. Reload Kenowa and allow the Ollama host permission if Chrome asks; check internet access, VPN, or firewall. Network detail: ${error?.message || error}`);
+                throw new Error(`Could not connect to Ollama at ${url}. Ensure Ollama is running locally ('ollama serve') and accessible. Network detail: ${error?.message || error}`);
             }
             throw new Error(`Could not reach ${provider}: ${error?.message || error}`);
         }

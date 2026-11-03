@@ -168,30 +168,42 @@
         <select id="settings-provider-input" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:6px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
           <option value="gemini">Google Gemini</option>
           <option value="openrouter">OpenRouter</option>
-          <option value="ollama">Ollama Cloud</option>
+          <option value="ollama">Ollama (Local / Self-Hosted)</option>
         </select>
         <!-- Provider hint line -->
-        <p id="provider-hint" style="font-size:0.75rem;color:var(--accent);margin-bottom:14px;padding:6px 10px;background:var(--accent-subtle);border-radius:6px;"></p>
+        <p id="provider-hint" style="font-size:0.75rem;color:var(--accent);margin-bottom:14px;padding:8px 10px;background:var(--accent-subtle);border-radius:6px;line-height:1.45;"></p>
 
-        <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Gemini API Key</label>
-        <div style="position:relative;">
-          <input type="password" id="settings-key-input" placeholder="Paste Gemini Key" style="width:100%;border:1px solid var(--border);padding:10px 36px 10px 10px;border-radius:6px;margin-bottom:14px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
-          <button data-key-toggle="settings-key-input" style="position:absolute;right:8px;top:10px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;">👁</button>
+        <div id="gemini-settings-group" class="provider-settings-group">
+          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Gemini API Key</label>
+          <div style="position:relative;">
+            <input type="password" id="settings-key-input" placeholder="Paste Gemini Key" style="width:100%;border:1px solid var(--border);padding:10px 36px 10px 10px;border-radius:6px;margin-bottom:14px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
+            <button data-key-toggle="settings-key-input" style="position:absolute;right:8px;top:10px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;">👁</button>
+          </div>
         </div>
 
-        <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">OpenRouter API Key</label>
-        <div style="position:relative;">
-          <input type="password" id="settings-openrouter-key-input" placeholder="Paste OpenRouter Key" style="width:100%;border:1px solid var(--border);padding:10px 36px 10px 10px;border-radius:6px;margin-bottom:14px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
-          <button data-key-toggle="settings-openrouter-key-input" style="position:absolute;right:8px;top:10px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;">👁</button>
+        <div id="openrouter-settings-group" class="provider-settings-group" style="display:none;">
+          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">OpenRouter API Key</label>
+          <div style="position:relative;">
+            <input type="password" id="settings-openrouter-key-input" placeholder="Paste OpenRouter Key" style="width:100%;border:1px solid var(--border);padding:10px 36px 10px 10px;border-radius:6px;margin-bottom:14px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
+            <button data-key-toggle="settings-openrouter-key-input" style="position:absolute;right:8px;top:10px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;">👁</button>
+          </div>
         </div>
 
-        <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Ollama Cloud Key</label>
-        <div style="position:relative;">
-          <input type="password" id="settings-ollama-key-input" placeholder="Paste Ollama Key" style="width:100%;border:1px solid var(--border);padding:10px 36px 10px 10px;border-radius:6px;margin-bottom:14px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
-          <button data-key-toggle="settings-ollama-key-input" style="position:absolute;right:8px;top:10px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;">👁</button>
+        <div id="ollama-settings-group" class="provider-settings-group" style="display:none;">
+          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Ollama Endpoint URL</label>
+          <div style="position:relative;margin-bottom:12px;">
+            <input type="text" id="settings-ollama-url-input" placeholder="http://localhost:11434" value="http://localhost:11434" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);font-family:monospace;font-size:0.84rem;">
+            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Default is <code>http://localhost:11434</code>. Run <code>ollama serve</code> or start the Ollama desktop app.</div>
+          </div>
+
+          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Ollama API Key (Optional)</label>
+          <div style="position:relative;margin-bottom:14px;">
+            <input type="password" id="settings-ollama-key-input" placeholder="Leave empty for local Ollama" style="width:100%;border:1px solid var(--border);padding:10px 36px 10px 10px;border-radius:6px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
+            <button data-key-toggle="settings-ollama-key-input" style="position:absolute;right:8px;top:10px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;">👁</button>
+          </div>
         </div>
 
-        <p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:18px;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px;">🔒 Keys are securely stored locally.</p>
+        <p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:18px;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px;">🔒 Keys and endpoints are securely stored locally.</p>
 
         <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Default AI Model</label>
         <div class="model-picker-row">
@@ -208,13 +220,17 @@
             <option value="meta-llama/llama-3.1-8b-instruct:free">LLaMA 3.1 8B Free</option>
             <option value="mistralai/mistral-7b-instruct:free">Mistral 7B Free</option>
           </optgroup>
-          <optgroup label="Ollama Cloud">
-            <option value="gpt-oss:120b-cloud">GPT-OSS 120B</option>
-            <option value="deepseek-v3.1:671b-cloud">DeepSeek V3.1</option>
-            <option value="qwen3-coder:480b-cloud">Qwen3 Coder</option>
+          <optgroup label="Ollama (Local / Cloud)">
+            <option value="llama3.2:latest">LLaMA 3.2 (Local)</option>
+            <option value="llama3.1:8b">LLaMA 3.1 8B (Local)</option>
+            <option value="deepseek-r1:8b">DeepSeek R1 8B (Local)</option>
+            <option value="qwen2.5-coder:7b">Qwen 2.5 Coder 7B (Local)</option>
+            <option value="mistral:latest">Mistral 7B (Local)</option>
+            <option value="phi3:latest">Phi 3 (Local)</option>
+            <option value="gpt-oss:120b-cloud">GPT-OSS 120B (Cloud)</option>
           </optgroup>
           </select>
-          <button id="refresh-models-btn" class="secondary-btn model-refresh-btn" type="button" title="Load models available for this API key" aria-label="Refresh available models">↻</button>
+          <button id="refresh-models-btn" class="secondary-btn model-refresh-btn" type="button" title="Load models available for this provider" aria-label="Refresh available models">↻</button>
         </div>
         <p id="models-status" class="models-status" role="status" aria-live="polite">Using built-in model list until a provider key is added.</p>
 

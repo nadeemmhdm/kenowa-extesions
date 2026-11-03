@@ -3,6 +3,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   sendResponse({
     provider: localStorage.getItem('kenowa_provider') || '',
     model: localStorage.getItem('kenowa_model') || '',
+    ollamaUrl: localStorage.getItem('kenowa_ollama_url') || 'http://localhost:11434',
     keys: {
       gemini: localStorage.getItem('kenowa_api_key') || '',
       openrouter: localStorage.getItem('kenowa_openrouter_key') || '',
