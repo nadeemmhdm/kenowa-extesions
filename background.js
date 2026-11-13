@@ -222,8 +222,8 @@ async function generateSelectionAnswer(text, config, history = [], options = {})
                 url = 'https://api.mistral.ai/v1/chat/completions';
             } else {
                 const account = String(config?.cloudflareAccountId || '').trim();
-                const gateway = String(config?.cloudflareGatewayId || '').trim();
-                if (!account || !gateway) throw new Error('Cloudflare AI Gateway Account ID and Gateway ID are required.');
+                const gateway = String(config?.cloudflareGatewayId || 'default').trim() || 'default';
+                if (!account) throw new Error('Cloudflare AI Gateway Account ID is required.');
                 url = `https://gateway.ai.cloudflare.com/v1/${encodeURIComponent(account)}/${encodeURIComponent(gateway)}/compat/chat/completions`;
                 if (config?.cloudflareGatewayToken) headers['cf-aig-authorization'] = `Bearer ${config.cloudflareGatewayToken}`;
             }
