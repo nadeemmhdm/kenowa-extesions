@@ -39,7 +39,7 @@ Kenowa AI is a high-performance Chrome Extension that integrates modern AI reaso
 ## 🚀 Quick Start & Installation
 
 ### Option 1: Download from GitHub Releases
-1. Download the latest version ZIP: [**Kenowa v2.19.2 (ZIP)**](https://github.com/nadeemmhdm/kenowa-extesions/releases/download/v2.19.2/kenowa-extesions-v2.19.2.zip).
+1. Download the latest version ZIP: [**Kenowa v2.19.3 (ZIP)**](https://github.com/nadeemmhdm/kenowa-extesions/releases/download/v2.19.3/kenowa-extesions-v2.19.3.zip).
 2. Unzip the downloaded folder to a location of your choice.
 3. Open Google Chrome and navigate to `chrome://extensions/`.
 4. Toggle **"Developer mode"** in the top right corner.
@@ -62,9 +62,9 @@ Load the directory into `chrome://extensions/` as an unpacked extension.
 3. Choose your AI Provider:
    - **Google Gemini**: Enter your free [Google AI Studio API Key](https://aistudio.google.com/).
    - **OpenRouter**: Enter your [OpenRouter API Key](https://openrouter.ai/).
-   - **Groq**: Enter your [Groq API Key](https://console.groq.com/keys).
+   - **Groq**: Enter your [Groq API Key](https://console.groq.com/keys). The default model is `openai/gpt-oss-120b` with streaming, medium reasoning, and a 2048-token completion budget.
    - **Mistral AI**: Enter your [Mistral API Key](https://console.mistral.ai/api-keys).
-   - **Cloudflare AI Gateway**: Enter the provider key, Cloudflare Account ID, and Gateway ID. Add a Gateway Token only when gateway authentication is enabled.
+   - **Cloudflare AI Gateway**: Enter your Cloudflare API token with Account > Workers AI > Read permission, Account ID, and optional Gateway ID (default: `default`). Workers AI models use the `@cf/...` format.
    - **Ollama Cloud**: Enter your API key from [Ollama Cloud](https://ollama.com/).
    - **Ollama Local**: Ensure Ollama is running (`ollama serve` or Ollama desktop app). No API key required!
 4. Click **Save** and start asking questions!

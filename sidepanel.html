@@ -57,7 +57,7 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
           </button>
           <div class="brand-area">
-            <span class="brand-name">Kenowa 2.19.2</span>
+            <span class="brand-name">Kenowa 2.19.3</span>
             <img src="logo.png" alt="Logo" class="brand-logo">
             <span id="pro-badge" class="pro-badge hidden">PRO</span>
           </div>
@@ -159,7 +159,7 @@
         <div class="settings-update-row">
           <div>
             <div style="font-weight:600;font-size:0.84rem;color:var(--text-main);">Kenowa Updates</div>
-            <div id="settings-update-status" style="font-size:0.75rem;color:var(--text-sub);margin-top:2px;">Version v2.19.2 · Checking...</div>
+            <div id="settings-update-status" style="font-size:0.75rem;color:var(--text-sub);margin-top:2px;">Version v2.19.3 · Checking...</div>
           </div>
           <button id="check-update-btn" class="settings-check-btn" type="button">Check Now</button>
         </div>
@@ -187,7 +187,8 @@
 
         <div id="groq-settings-group" class="provider-settings-group" style="display:none;">
           <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Groq API Key</label>
-          <input type="password" id="settings-groq-key-input" placeholder="Paste Groq API key" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:14px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
+          <input type="password" id="settings-groq-key-input" placeholder="Paste Groq API key (console.groq.com/keys)" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:14px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
+        <div style="font-size:0.72rem;color:var(--text-muted);margin-top:-8px;margin-bottom:8px;">Recommended model: <strong>GPT-OSS 120B</strong> with streaming and medium reasoning.</div>
         </div>
 
         <div id="mistral-settings-group" class="provider-settings-group" style="display:none;">
@@ -197,14 +198,12 @@
         </div>
 
         <div id="cloudflare-ai-gateway-settings-group" class="provider-settings-group" style="display:none;">
-          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;display:block;margin-bottom:5px;">Provider API Key (OpenAI / Groq / Mistral / Google)</label>
-          <input type="password" id="settings-cloudflare-key-input" placeholder="Provider API key, e.g. OpenAI / Groq / Mistral / Google" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:8px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
+          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;display:block;margin-bottom:5px;">Cloudflare API Token (CLOUDFLARE_API_TOKEN)</label>
+          <input type="password" id="settings-cloudflare-key-input" placeholder="Paste Cloudflare API token with Workers AI Read permission" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:8px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
           <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;display:block;margin-bottom:5px;">Account ID</label>
           <input type="text" id="settings-cloudflare-account-input" placeholder="Cloudflare account ID" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:8px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
           <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;display:block;margin-bottom:5px;">Gateway ID</label>
           <input type="text" id="settings-cloudflare-gateway-input" placeholder="Optional; defaults to default" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:8px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
-          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;display:block;margin-bottom:5px;">Gateway Token (optional)</label>
-          <input type="password" id="settings-cloudflare-token-input" placeholder="Optional Cloudflare Gateway auth token" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:14px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
         </div>
 
         <div id="openrouter-settings-group" class="provider-settings-group" style="display:none;">

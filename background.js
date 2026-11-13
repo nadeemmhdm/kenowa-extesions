@@ -215,20 +215,19 @@ async function generateSelectionAnswer(text, config, history = [], options = {})
                 system_instruction: { parts: [{ text: systemPrompt }] },
                 contents: [...providerHistory.map(turn => ({ role: turn.role === 'assistant' ? 'model' : 'user', parts: [{ text: turn.content }] })), { role: 'user', parts: [{ text: promptText }] }]
             });
-        } else if (provider === 'groq' || provider === 'mistral' || provider === 'cloudflare_ai_gateway') {
-            if (provider === 'groq') {
-                url = 'https://api.groq.com/openai/v1/chat/completions';
-            } else if (provider === 'mistral') {
-                url = 'https://api.mistral.ai/v1/chat/completions';
-            } else {
-                const account = String(config?.cloudflareAccountId || '').trim();
-                const gateway = String(config?.cloudflareGatewayId || 'default').trim() || 'default';
-                if (!account) throw new Error('Cloudflare AI Gateway Account ID is required.');
-                url = `https://gateway.ai.cloudflare.com/v1/${encodeURIComponent(account)}/${encodeURIComponent(gateway)}/compat/chat/completions`;
-                if (config?.cloudflareGatewayToken) headers['cf-aig-authorization'] = `Bearer ${config.cloudflareGatewayToken}`;
-            }
+        } else if (provider === 'groq' || provider === 'mistral') {
+            if (provider === 'groq') url = 'https://api.groq.com/openai/v1/chat/completions';
+            else url = 'https://api.mistral.ai/v1/chat/completions';
             headers.Authorization = `Bearer ${apiKey}`;
-            body = JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, ...providerHistory, { role: 'user', content: promptText }], stream: false });
+            body = JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, ...providerHistory, { role: 'user', content: promptText }], ...(provider === 'groq' ? { temperature: 1, max_completion_tokens: 2048, top_p: 1, stop: null, ...(String(model).startsWith('openai/gpt-oss') ? { reasoning_effort: 'medium' } : {}) } : {}), stream: false });
+        } else if (provider === 'cloudflare_ai_gateway') {
+            const account = String(config?.cloudflareAccountId || '').trim();
+            const gateway = String(config?.cloudflareGatewayId || 'default').trim() || 'default';
+            if (!account) throw new Error('Cloudflare Account ID is required.');
+            url = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/ai/run`;
+            headers.Authorization = `Bearer ${apiKey}`;
+            headers['cf-aig-gateway-id'] = gateway;
+            body = JSON.stringify({ model, input: { messages: [{ role: 'system', content: systemPrompt }, ...providerHistory, { role: 'user', content: promptText }] } });
         } else if (provider === 'openrouter') {
             url = 'https://openrouter.ai/api/v1/chat/completions';
             headers.Authorization = `Bearer ${apiKey}`;
@@ -267,9 +266,11 @@ async function generateSelectionAnswer(text, config, history = [], options = {})
 
         let answer = '';
         if (provider === 'gemini') answer = (data.candidates?.[0]?.content?.parts || []).map(part => part.text || '').join('');
-        else if (provider === 'openrouter' || provider === 'groq' || provider === 'mistral' || provider === 'cloudflare_ai_gateway') {
+        else if (provider === 'openrouter' || provider === 'groq' || provider === 'mistral') {
             const content = data.choices?.[0]?.message?.content;
             answer = Array.isArray(content) ? content.map(part => part.text || '').join('') : String(content || '');
+        } else if (provider === 'cloudflare_ai_gateway') {
+            answer = typeof data?.result?.response === 'string' ? data.result.response : String(data?.result || '');
         } else answer = String(data.message?.content || '');
         if (!answer.trim()) throw new Error(`${provider} / ${model} returned no text. Check that the selected model supports chat or text generation.`);
         return { answer, provider, model, sources: webResults, webSearchWarning };
