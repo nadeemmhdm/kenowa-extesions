@@ -39,7 +39,7 @@ Kenowa AI is a high-performance Chrome Extension that integrates modern AI reaso
 ## 🚀 Quick Start & Installation
 
 ### Option 1: Download from GitHub Releases
-1. Download the latest version ZIP: [**Kenowa main branch (v2.19.4 code ZIP)**](https://github.com/nadeemmhdm/kenowa-extesions/archive/refs/heads/main.zip).
+1. Download the latest version ZIP: [**Kenowa v2.19.4 (ZIP)**](https://github.com/nadeemmhdm/kenowa-extesions/releases/download/v2.19.4/kenowa-extesions-v2.19.4.zip).
 2. Unzip the downloaded folder to a location of your choice.
 3. Open Google Chrome and navigate to `chrome://extensions/`.
 4. Toggle **"Developer mode"** in the top right corner.
