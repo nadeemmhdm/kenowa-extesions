@@ -1774,9 +1774,9 @@ async function handleSend(textOverride=null, executionOptions={}) {
     const lockedChatId = currentChatId;
     const { context: capsuleContext, sources: retrievedSources } = getCapsuleReferenceData(text);
     const sysPrompt = getSystemPrompt() + capsuleContext;
+    const aiConfig = executionOptions.config || getSelectedAIConfig();
 
     try {
-        const aiConfig = executionOptions.config || getSelectedAIConfig();
         const provider = aiConfig.provider;
         const model = aiConfig.model;
         const apiKey = aiConfig.apiKey;
