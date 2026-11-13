@@ -3428,3 +3428,19 @@ body::after {
   width: 4px;
   height: 4px;
 }
+
+/* Settings switches and folder Capsule UX */
+.settings-preferences { margin:8px 0 18px; padding:10px; border:1px solid var(--border); border-radius:10px; background:rgba(0,0,0,.12); }
+.switch-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 0; color:var(--text-main); cursor:pointer; }
+.switch-row + .switch-row { border-top:1px solid var(--border); }
+.switch-row strong { display:block; font-size:.82rem; font-weight:600; }
+.switch-row small { display:block; margin-top:2px; color:var(--text-muted); font-size:.7rem; line-height:1.35; }
+.ui-switch { position:relative; flex:0 0 auto; width:40px; height:22px; }
+.ui-switch input { position:absolute; width:1px; height:1px; opacity:0; }
+.ui-switch-track { position:absolute; inset:0; border-radius:99px; background:var(--bg-elevated); border:1px solid var(--border-bright); transition:background .2s ease, border-color .2s ease; }
+.ui-switch-track::after { content:''; position:absolute; width:16px; height:16px; top:2px; left:2px; border-radius:50%; background:var(--text-muted); transition:transform .2s var(--ease-spring), background .2s ease; }
+.ui-switch input:checked + .ui-switch-track { background:var(--accent); border-color:var(--accent); box-shadow:0 0 12px var(--accent-glow); }
+.ui-switch input:checked + .ui-switch-track::after { transform:translateX(18px); background:#fff; }
+.preference-sub-label { display:block; margin-top:8px; color:var(--text-muted); font-size:.7rem; }
+.preference-order-input { width:100%; margin-top:4px; padding:8px; border:1px solid var(--border); border-radius:7px; box-sizing:border-box; background:var(--bg-dark); color:var(--text-main); font-family:monospace; font-size:.78rem; }
+.capsule-folder-pill { margin-bottom:4px; padding:7px 8px; border-radius:7px; color:var(--accent); background:var(--accent-subtle); font-size:.72rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

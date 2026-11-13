@@ -7,7 +7,7 @@ const BASE_URL  = "https://generativelanguage.googleapis.com/v1beta/models/";
 const MODEL_QUICK = "gemini-2.0-flash";
 const MODEL_DEEP  = "gemini-1.5-pro";
 const MODEL_IMAGE = "gemini-2.0-flash-exp";
-const APP_VERSION = "2.19.3";
+const APP_VERSION = "2.19.4";
 
 function providerModelKey(provider) { return `kenowa_model_${provider}`; }
 function getOllamaBaseUrl() {
@@ -588,6 +588,7 @@ const MODEL_CACHE_TTL = 24 * 60 * 60 * 1000;
 // providerKeyName is defined near the provider helpers above.
 
 const CAPSULE_STORAGE_KEY = 'kenowa_capsules_v1';
+const CAPSULE_FOLDER_STORAGE_KEY = 'kenowa_capsule_folder_v1';
 const CAPSULE_MAX_FILES = 5;
 const CAPSULE_MAX_FILE_BYTES = 180 * 1024;
 const CAPSULE_MAX_TOTAL_CHARS = 26000;
@@ -598,6 +599,8 @@ function getCapsules() {
         return Array.isArray(value) ? value.filter(item => item && typeof item.name === 'string' && typeof item.content === 'string').slice(0, CAPSULE_MAX_FILES) : [];
     } catch (_) { return []; }
 }
+
+function areSuggestionsEnabled() { return localStorage.getItem('kenowa_suggestions_enabled') !== 'false'; }
 
 function saveCapsules(capsules) {
     const bounded = capsules.slice(0, CAPSULE_MAX_FILES);
@@ -613,10 +616,17 @@ function renderCapsules() {
     if (!list) return;
     const capsules = getCapsules();
     list.replaceChildren();
+    const folderName = localStorage.getItem(CAPSULE_FOLDER_STORAGE_KEY) || '';
+    if (folderName && capsules.length) {
+        const folder = document.createElement('div');
+        folder.className = 'capsule-folder-pill';
+        folder.textContent = `📁 ${folderName} · ${capsules.length}/${CAPSULE_MAX_FILES} Markdown files`;
+        list.appendChild(folder);
+    }
     if (!capsules.length) {
         const empty = document.createElement('div');
         empty.className = 'capsule-empty';
-        empty.textContent = 'No reference files added yet.';
+        empty.textContent = 'No folder selected yet.';
         list.appendChild(empty);
     }
     capsules.forEach((capsule, index) => {
@@ -642,27 +652,39 @@ function renderCapsules() {
         list.appendChild(row);
     });
     if (addButton) addButton.disabled = capsules.length >= CAPSULE_MAX_FILES;
-    if (addButton) addButton.title = capsules.length >= CAPSULE_MAX_FILES ? `Maximum ${CAPSULE_MAX_FILES} Markdown files` : 'Add Markdown reference files';
+    if (addButton) addButton.title = 'Choose one folder; up to 5 .md files are imported';
 }
 
 async function importCapsuleFiles(fileList) {
     const input = document.getElementById('capsule-file-input');
-    let capsules = getCapsules();
-    for (const file of Array.from(fileList || [])) {
-        if (!/\.md$/i.test(file.name)) { showToast(`${file.name}: only .md files are supported.`, 'error'); continue; }
+    const files = Array.from(fileList || []).filter(file => /\.md$/i.test(file.name))
+        .sort((a, b) => String(a.webkitRelativePath || a.name).localeCompare(String(b.webkitRelativePath || b.name)));
+    if (!files.length) {
+        showToast('Choose a folder containing at least one .md file.', 'error');
+        if (input) input.value = '';
+        return;
+    }
+    const selected = files.slice(0, CAPSULE_MAX_FILES);
+    if (files.length > CAPSULE_MAX_FILES) showToast(`Only the first ${CAPSULE_MAX_FILES} Markdown files were imported.`, 'info');
+    const folderName = String(selected[0].webkitRelativePath || '').split('/')[0] || 'Selected folder';
+    const capsules = [];
+    for (const file of selected) {
         if (file.size > CAPSULE_MAX_FILE_BYTES) { showToast(`${file.name}: maximum size is 180 KB per file.`, 'error'); continue; }
-        if (capsules.length >= CAPSULE_MAX_FILES) { showToast(`Capsule supports up to ${CAPSULE_MAX_FILES} Markdown files.`, 'error'); break; }
-        if (capsules.some(item => item.name.toLowerCase() === file.name.toLowerCase())) { showToast(`${file.name} is already in Capsule. Remove it before adding a replacement.`, 'error'); continue; }
         try {
             const content = (await file.text()).replace(/\u0000/g, '').trim();
             if (!content) { showToast(`${file.name} is empty.`, 'error'); continue; }
-            capsules.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, name: file.name, content, addedAt: Date.now() });
+            const relativePath = String(file.webkitRelativePath || file.name);
+            const displayName = relativePath.split('/').slice(1).join('/') || file.name;
+            capsules.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, name: displayName, content, addedAt: Date.now() });
         } catch (error) { showToast(`Could not read ${file.name}: ${error.message}`, 'error'); }
     }
-    saveCapsules(capsules);
+    if (capsules.length) {
+        localStorage.setItem(CAPSULE_FOLDER_STORAGE_KEY, folderName);
+        saveCapsules(capsules);
+        showToast(`Capsule folder saved · ${capsules.length}/${CAPSULE_MAX_FILES} files`, 'success');
+    }
     renderCapsules();
     if (input) input.value = '';
-    if (capsules.length) showToast(`Capsule saved · ${capsules.length}/${CAPSULE_MAX_FILES} files`, 'success');
 }
 
 const CAPSULE_STOPWORDS = new Set([
@@ -1209,6 +1231,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cloudflareGatewayInput = document.getElementById('settings-cloudflare-gateway-input');
     const cloudflareTokenInput = document.getElementById('settings-cloudflare-token-input');
     const fallbackEnabledInput = document.getElementById('settings-auto-fallback-input');
+    const suggestionsEnabledInput = document.getElementById('settings-suggestions-input');
     const fallbackOrderInput = document.getElementById('settings-fallback-order-input');
     const ollamaLocalKeyInput = document.getElementById('settings-ollama-local-key-input');
     const ollamaCloudKeyInput = document.getElementById('settings-ollama-cloud-key-input');
@@ -1237,6 +1260,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (cloudflareGatewayInput) cloudflareGatewayInput.value = localStorage.getItem('kenowa_cloudflare_gateway_id') || 'default';
         if (cloudflareTokenInput) cloudflareTokenInput.value = localStorage.getItem('kenowa_cloudflare_gateway_token') || '';
         if (fallbackEnabledInput) fallbackEnabledInput.checked = isAutoFallbackEnabled();
+        if (suggestionsEnabledInput) suggestionsEnabledInput.checked = areSuggestionsEnabled();
         if (fallbackOrderInput) fallbackOrderInput.value = getFallbackOrder().join(',');
         if (ollamaLocalKeyInput) ollamaLocalKeyInput.value = localStorage.getItem('kenowa_ollama_local_key') || '';
         if (ollamaCloudKeyInput) ollamaCloudKeyInput.value = localStorage.getItem('kenowa_ollama_key') || '';
@@ -1325,6 +1349,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (cloudflareGatewayInput) localStorage.setItem('kenowa_cloudflare_gateway_id', cloudflareGatewayInput.value.trim() || 'default');
         if (cloudflareTokenInput) localStorage.setItem('kenowa_cloudflare_gateway_token', cloudflareTokenInput.value.trim());
         localStorage.setItem('kenowa_auto_fallback', fallbackEnabledInput?.checked === false ? 'false' : 'true');
+        localStorage.setItem('kenowa_suggestions_enabled', suggestionsEnabledInput?.checked === false ? 'false' : 'true');
         localStorage.setItem('kenowa_fallback_order', fallbackOrderInput?.value || getFallbackOrder().join(','));
         if (ollamaLocalKeyInput) localStorage.setItem('kenowa_ollama_local_key', ollamaLocalKeyInput.value);
         if (ollamaCloudKeyInput) localStorage.setItem('kenowa_ollama_key', ollamaCloudKeyInput.value);
@@ -2067,7 +2092,7 @@ async function summarizePage() {
 }
 
 async function getAISuggestions(userMsg, aiMsg) {
-    if (!userMsg || !aiMsg || isExamMode || isSQMode || currentMode === 'image') return;
+    if (!areSuggestionsEnabled() || !userMsg || !aiMsg || isExamMode || isSQMode || currentMode === 'image') return;
     
     const prompt = `You are a helpful AI. Based on the user's message: "${userMsg.substring(0,200)}" and my response: "${aiMsg.substring(0,300)}", suggest up to 4 short, relevant follow-up questions the user might want to ask next.
     Return ONLY up to 4 suggestions, one per line, each starting with "- ". Keep each suggestion under 6 words.`;

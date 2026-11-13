@@ -57,7 +57,7 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
           </button>
           <div class="brand-area">
-            <span class="brand-name">Kenowa 2.19.3</span>
+            <span class="brand-name">Kenowa 2.19.4</span>
             <img src="logo.png" alt="Logo" class="brand-logo">
             <span id="pro-badge" class="pro-badge hidden">PRO</span>
           </div>
@@ -159,7 +159,7 @@
         <div class="settings-update-row">
           <div>
             <div style="font-weight:600;font-size:0.84rem;color:var(--text-main);">Kenowa Updates</div>
-            <div id="settings-update-status" style="font-size:0.75rem;color:var(--text-sub);margin-top:2px;">Version v2.19.3 · Checking...</div>
+            <div id="settings-update-status" style="font-size:0.75rem;color:var(--text-sub);margin-top:2px;">Version v2.19.4 · Checking...</div>
           </div>
           <button id="check-update-btn" class="settings-check-btn" type="button">Check Now</button>
         </div>
@@ -239,10 +239,17 @@
 
         <p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:18px;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px;">🔒 Keys and endpoints are securely stored locally.</p>
 
-        <div style="border:1px solid var(--border);padding:10px;border-radius:6px;margin:8px 0 18px;background:rgba(0,0,0,0.12);">
-          <label style="display:flex;gap:8px;align-items:center;font-size:0.82rem;color:var(--text-main);"><input type="checkbox" id="settings-auto-fallback-input" checked> Automatically switch provider/model when quota, rate limit, auth, or capacity errors occur</label>
-          <label for="settings-fallback-order-input" style="display:block;font-size:0.72rem;color:var(--text-muted);margin-top:9px;">Fallback order (comma-separated)</label>
-          <input id="settings-fallback-order-input" type="text" placeholder="groq,mistral,cloudflare_ai_gateway,openrouter,gemini" style="width:100%;border:1px solid var(--border);padding:8px;border-radius:6px;margin-top:4px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);font-family:monospace;font-size:0.78rem;">
+        <div class="settings-preferences">
+          <label class="switch-row" for="settings-auto-fallback-input">
+            <span><strong>Automatic provider fallback</strong><small>Switch when quota, rate limit, auth, or capacity errors occur.</small></span>
+            <span class="ui-switch"><input type="checkbox" id="settings-auto-fallback-input" checked><span class="ui-switch-track"></span></span>
+          </label>
+          <label class="switch-row" for="settings-suggestions-input">
+            <span><strong>Suggested follow-up messages</strong><small>Show relevant prompt chips below each answer.</small></span>
+            <span class="ui-switch"><input type="checkbox" id="settings-suggestions-input" checked><span class="ui-switch-track"></span></span>
+          </label>
+          <label for="settings-fallback-order-input" class="preference-sub-label">Fallback order</label>
+          <input id="settings-fallback-order-input" type="text" placeholder="groq,mistral,cloudflare_ai_gateway,openrouter,gemini" class="preference-order-input">
         </div>
 
         <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Default AI Model</label>
@@ -286,11 +293,11 @@
           <div class="capsule-heading-row">
             <div>
               <label id="capsule-heading" class="capsule-label">Capsule · Topic references</label>
-              <p class="capsule-help">Save up to 5 Markdown files. Kenowa will retrieve relevant sections for future answers.</p>
+              <p class="capsule-help">Choose one folder. Kenowa reads up to 5 Markdown files from it and retrieves relevant sections for future answers.</p>
             </div>
-            <button id="capsule-add-btn" class="secondary-btn capsule-add-btn" type="button">Add .md</button>
+            <button id="capsule-add-btn" class="secondary-btn capsule-add-btn" type="button">Choose folder</button>
           </div>
-          <input id="capsule-file-input" type="file" accept=".md,text/markdown,text/plain" multiple hidden>
+          <input id="capsule-file-input" type="file" accept=".md,text/markdown,text/plain" webkitdirectory directory multiple hidden>
           <div id="capsule-list" class="capsule-list" aria-live="polite"></div>
         </section>
 

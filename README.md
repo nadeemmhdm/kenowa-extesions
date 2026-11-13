@@ -17,7 +17,7 @@ Kenowa AI is a high-performance Chrome Extension that integrates modern AI reaso
   - **Mistral AI**: Official Mistral API access for Large, Small, Codestral, and Pixtral models.
   - **Cloudflare AI Gateway**: Route compatible models through a Cloudflare AI Gateway for caching, analytics, and centralized routing.
 - **📚 Personal Capsule RAG with Verifiable Citations:**
-  - Upload your course notes, textbooks, project specifications, or reference docs in Markdown (`.md`).
+  - Choose one folder containing your course notes, textbooks, project specifications, or reference docs in Markdown (`.md`); Kenowa imports up to 5 files.
   - **Accurate Attribution:** Intelligently scores and includes only sources that were **actually used** to formulate the answer. If no documents provide useful context, the sources section is cleanly omitted.
   - Collapsible, clean UI displaying source names and exact passage snippets.
 - **📋 1-Click Copy with Interactive Checkmark Feedback:**
@@ -39,7 +39,7 @@ Kenowa AI is a high-performance Chrome Extension that integrates modern AI reaso
 ## 🚀 Quick Start & Installation
 
 ### Option 1: Download from GitHub Releases
-1. Download the latest version ZIP: [**Kenowa v2.19.3 (ZIP)**](https://github.com/nadeemmhdm/kenowa-extesions/releases/download/v2.19.3/kenowa-extesions-v2.19.3.zip).
+1. Download the latest version ZIP: [**Kenowa main branch (v2.19.4 code ZIP)**](https://github.com/nadeemmhdm/kenowa-extesions/archive/refs/heads/main.zip).
 2. Unzip the downloaded folder to a location of your choice.
 3. Open Google Chrome and navigate to `chrome://extensions/`.
 4. Toggle **"Developer mode"** in the top right corner.
@@ -71,7 +71,7 @@ Load the directory into `chrome://extensions/` as an unpacked extension.
 
 ### Automatic provider fallback
 
-Kenowa can automatically move to the next configured provider when the active provider returns a quota, rate-limit, authentication, billing, capacity, or temporary availability error. Enable **Automatically switch provider/model...** in Settings and set the comma-separated fallback order, for example `groq,mistral,cloudflare_ai_gateway,openrouter,gemini`. Providers are only used when a key is saved (or when Ollama Local is available), and the feature can be disabled at any time.
+Kenowa can automatically move to the next configured provider when the active provider returns a quota, rate-limit, authentication, billing, capacity, or temporary availability error. Enable **Automatically switch provider/model...** in Settings and set the comma-separated fallback order, for example `groq,mistral,cloudflare_ai_gateway,openrouter,gemini`. Providers are only used when a key is saved (or when Ollama Local is available), and the feature can be disabled at any time. Settings also includes a switch to turn suggested follow-up message chips on or off.
 
 ---
 
