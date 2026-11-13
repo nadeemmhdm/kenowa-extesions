@@ -7,7 +7,7 @@ const BASE_URL  = "https://generativelanguage.googleapis.com/v1beta/models/";
 const MODEL_QUICK = "gemini-2.0-flash";
 const MODEL_DEEP  = "gemini-1.5-pro";
 const MODEL_IMAGE = "gemini-2.0-flash-exp";
-const APP_VERSION = "2.19.0";
+const APP_VERSION = "2.19.1";
 
 function providerModelKey(provider) { return `kenowa_model_${provider}`; }
 function getOllamaBaseUrl() {
@@ -3552,7 +3552,7 @@ function initUpdateChecker() {
 
     const currentVersion = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest)
         ? chrome.runtime.getManifest().version
-        : '2.18';
+        : '2.19';
 
     function openUpdateModal(info) {
         if (!updateModal) return;
