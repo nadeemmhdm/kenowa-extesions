@@ -164,7 +164,7 @@ async function generateSelectionAnswer(text, config, history = [], options = {})
     ).map(turn => ({ role: turn.role, content: turn.content.trim().slice(0, 8000) })).filter(turn => turn.content);
     const isOllamaLocal = provider === 'ollama_local';
     const isOllamaCloud = provider === 'ollama_cloud' || provider === 'ollama';
-    if (!['gemini', 'openrouter', 'ollama', 'ollama_local', 'ollama_cloud'].includes(provider)) throw new Error('No supported AI provider is selected in Kenowa settings.');
+    if (!['gemini', 'openrouter', 'groq', 'mistral', 'cloudflare_ai_gateway', 'ollama', 'ollama_local', 'ollama_cloud'].includes(provider)) throw new Error('No supported AI provider is selected in Kenowa settings.');
     if (!model) throw new Error('No model is selected. Open Kenowa Settings, choose a model, and save.');
     if (!apiKey && !isOllamaLocal) throw new Error(`No ${isOllamaCloud ? 'Ollama Cloud' : provider} API key is saved for background selection requests. Open Kenowa Settings and save the key once.`);
 
@@ -215,6 +215,20 @@ async function generateSelectionAnswer(text, config, history = [], options = {})
                 system_instruction: { parts: [{ text: systemPrompt }] },
                 contents: [...providerHistory.map(turn => ({ role: turn.role === 'assistant' ? 'model' : 'user', parts: [{ text: turn.content }] })), { role: 'user', parts: [{ text: promptText }] }]
             });
+        } else if (provider === 'groq' || provider === 'mistral' || provider === 'cloudflare_ai_gateway') {
+            if (provider === 'groq') {
+                url = 'https://api.groq.com/openai/v1/chat/completions';
+            } else if (provider === 'mistral') {
+                url = 'https://api.mistral.ai/v1/chat/completions';
+            } else {
+                const account = String(config?.cloudflareAccountId || '').trim();
+                const gateway = String(config?.cloudflareGatewayId || '').trim();
+                if (!account || !gateway) throw new Error('Cloudflare AI Gateway Account ID and Gateway ID are required.');
+                url = `https://gateway.ai.cloudflare.com/v1/${encodeURIComponent(account)}/${encodeURIComponent(gateway)}/compat/chat/completions`;
+                if (config?.cloudflareGatewayToken) headers['cf-aig-authorization'] = `Bearer ${config.cloudflareGatewayToken}`;
+            }
+            headers.Authorization = `Bearer ${apiKey}`;
+            body = JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, ...providerHistory, { role: 'user', content: promptText }], stream: false });
         } else if (provider === 'openrouter') {
             url = 'https://openrouter.ai/api/v1/chat/completions';
             headers.Authorization = `Bearer ${apiKey}`;
@@ -253,7 +267,7 @@ async function generateSelectionAnswer(text, config, history = [], options = {})
 
         let answer = '';
         if (provider === 'gemini') answer = (data.candidates?.[0]?.content?.parts || []).map(part => part.text || '').join('');
-        else if (provider === 'openrouter') {
+        else if (provider === 'openrouter' || provider === 'groq' || provider === 'mistral' || provider === 'cloudflare_ai_gateway') {
             const content = data.choices?.[0]?.message?.content;
             answer = Array.isArray(content) ? content.map(part => part.text || '').join('') : String(content || '');
         } else answer = String(data.message?.content || '');

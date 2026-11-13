@@ -159,7 +159,7 @@
         <div class="settings-update-row">
           <div>
             <div style="font-weight:600;font-size:0.84rem;color:var(--text-main);">Kenowa Updates</div>
-            <div id="settings-update-status" style="font-size:0.75rem;color:var(--text-sub);margin-top:2px;">Version v2.18 · Checking...</div>
+            <div id="settings-update-status" style="font-size:0.75rem;color:var(--text-sub);margin-top:2px;">Version v2.19 · Checking...</div>
           </div>
           <button id="check-update-btn" class="settings-check-btn" type="button">Check Now</button>
         </div>
@@ -168,6 +168,9 @@
         <select id="settings-provider-input" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:6px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
           <option value="gemini">Google Gemini</option>
           <option value="openrouter">OpenRouter</option>
+          <option value="groq">Groq</option>
+          <option value="mistral">Mistral AI</option>
+          <option value="cloudflare_ai_gateway">Cloudflare AI Gateway</option>
           <option value="ollama_local">Ollama (Local / Self-Hosted)</option>
           <option value="ollama_cloud">Ollama Cloud (ollama.com)</option>
         </select>
@@ -180,6 +183,28 @@
             <input type="password" id="settings-key-input" placeholder="Paste Gemini Key" style="width:100%;border:1px solid var(--border);padding:10px 36px 10px 10px;border-radius:6px;margin-bottom:14px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
             <button data-key-toggle="settings-key-input" style="position:absolute;right:8px;top:10px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;">👁</button>
           </div>
+        </div>
+
+        <div id="groq-settings-group" class="provider-settings-group" style="display:none;">
+          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Groq API Key</label>
+          <input type="password" id="settings-groq-key-input" placeholder="Paste Groq API key" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:14px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
+        </div>
+
+        <div id="mistral-settings-group" class="provider-settings-group" style="display:none;">
+          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Mistral AI API Key</label>
+          <input type="password" id="settings-mistral-key-input" placeholder="Paste Mistral API key" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:14px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
+          <div style="font-size:0.72rem;color:var(--text-muted);margin-top:-8px;margin-bottom:8px;">Get a key from <a href="https://console.mistral.ai/api-keys" target="_blank" style="color:var(--accent);text-decoration:underline;">console.mistral.ai</a>.</div>
+        </div>
+
+        <div id="cloudflare-ai-gateway-settings-group" class="provider-settings-group" style="display:none;">
+          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;display:block;margin-bottom:5px;">Cloudflare AI Gateway API Key</label>
+          <input type="password" id="settings-cloudflare-key-input" placeholder="Provider API key (or gateway auth key)" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:8px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
+          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;display:block;margin-bottom:5px;">Account ID</label>
+          <input type="text" id="settings-cloudflare-account-input" placeholder="Cloudflare account ID" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:8px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
+          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;display:block;margin-bottom:5px;">Gateway ID</label>
+          <input type="text" id="settings-cloudflare-gateway-input" placeholder="AI Gateway name / ID" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:8px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
+          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;display:block;margin-bottom:5px;">Gateway Token (optional)</label>
+          <input type="password" id="settings-cloudflare-token-input" placeholder="Only if gateway auth is enabled" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;margin-bottom:14px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
         </div>
 
         <div id="openrouter-settings-group" class="provider-settings-group" style="display:none;">
@@ -214,6 +239,12 @@
         </div>
 
         <p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:18px;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px;">🔒 Keys and endpoints are securely stored locally.</p>
+
+        <div style="border:1px solid var(--border);padding:10px;border-radius:6px;margin:8px 0 18px;background:rgba(0,0,0,0.12);">
+          <label style="display:flex;gap:8px;align-items:center;font-size:0.82rem;color:var(--text-main);"><input type="checkbox" id="settings-auto-fallback-input" checked> Automatically switch provider/model when quota, rate limit, auth, or capacity errors occur</label>
+          <label for="settings-fallback-order-input" style="display:block;font-size:0.72rem;color:var(--text-muted);margin-top:9px;">Fallback order (comma-separated)</label>
+          <input id="settings-fallback-order-input" type="text" placeholder="groq,cloudflare_ai_gateway,openrouter,gemini" style="width:100%;border:1px solid var(--border);padding:8px;border-radius:6px;margin-top:4px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);font-family:monospace;font-size:0.78rem;">
+        </div>
 
         <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Default AI Model</label>
         <div class="model-picker-row">

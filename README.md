@@ -13,6 +13,9 @@ Kenowa AI is a high-performance Chrome Extension that integrates modern AI reaso
   - **Ollama Cloud** (`https://ollama.com`): Scalable inference on massive open-weights models (Gemma 4 31B, Qwen3 Coder 480B, DeepSeek V3.1 671B, GPT-OSS 120B).
   - **Google Gemini**: Lightning-fast responses with Gemini 2.0 Flash, Gemini 1.5 Pro, and experimental image generation.
   - **OpenRouter**: Access hundreds of models with flexible API routing.
+  - **Groq**: Fast OpenAI-compatible inference using Llama and Mixtral models.
+  - **Mistral AI**: Official Mistral API access for Large, Small, Codestral, and Pixtral models.
+  - **Cloudflare AI Gateway**: Route compatible models through a Cloudflare AI Gateway for caching, analytics, and centralized routing.
 - **📚 Personal Capsule RAG with Verifiable Citations:**
   - Upload your course notes, textbooks, project specifications, or reference docs in Markdown (`.md`).
   - **Accurate Attribution:** Intelligently scores and includes only sources that were **actually used** to formulate the answer. If no documents provide useful context, the sources section is cleanly omitted.
@@ -36,7 +39,7 @@ Kenowa AI is a high-performance Chrome Extension that integrates modern AI reaso
 ## 🚀 Quick Start & Installation
 
 ### Option 1: Download from GitHub Releases
-1. Download the latest version ZIP: [**Kenowa v2.18 (ZIP)**](https://github.com/nadeemmhdm/kenowa-extesions/archive/refs/tags/v2.18.zip).
+1. Download the latest version ZIP: [**Kenowa v2.19 (ZIP)**](https://github.com/nadeemmhdm/kenowa-extesions/archive/refs/tags/v2.19.zip).
 2. Unzip the downloaded folder to a location of your choice.
 3. Open Google Chrome and navigate to `chrome://extensions/`.
 4. Toggle **"Developer mode"** in the top right corner.
@@ -59,9 +62,16 @@ Load the directory into `chrome://extensions/` as an unpacked extension.
 3. Choose your AI Provider:
    - **Google Gemini**: Enter your free [Google AI Studio API Key](https://aistudio.google.com/).
    - **OpenRouter**: Enter your [OpenRouter API Key](https://openrouter.ai/).
+   - **Groq**: Enter your [Groq API Key](https://console.groq.com/keys).
+   - **Mistral AI**: Enter your [Mistral API Key](https://console.mistral.ai/api-keys).
+   - **Cloudflare AI Gateway**: Enter the provider key, Cloudflare Account ID, and Gateway ID. Add a Gateway Token only when gateway authentication is enabled.
    - **Ollama Cloud**: Enter your API key from [Ollama Cloud](https://ollama.com/).
    - **Ollama Local**: Ensure Ollama is running (`ollama serve` or Ollama desktop app). No API key required!
 4. Click **Save** and start asking questions!
+
+### Automatic provider fallback
+
+Kenowa can automatically move to the next configured provider when the active provider returns a quota, rate-limit, authentication, billing, capacity, or temporary availability error. Enable **Automatically switch provider/model...** in Settings and set the comma-separated fallback order, for example `groq,mistral,cloudflare_ai_gateway,openrouter,gemini`. Providers are only used when a key is saved (or when Ollama Local is available), and the feature can be disabled at any time.
 
 ---
 

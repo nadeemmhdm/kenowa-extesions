@@ -7,18 +7,90 @@ const BASE_URL  = "https://generativelanguage.googleapis.com/v1beta/models/";
 const MODEL_QUICK = "gemini-2.0-flash";
 const MODEL_DEEP  = "gemini-1.5-pro";
 const MODEL_IMAGE = "gemini-2.0-flash-exp";
-const APP_VERSION = "2.18.0";
+const APP_VERSION = "2.19.0";
 
 function providerModelKey(provider) { return `kenowa_model_${provider}`; }
 function getOllamaBaseUrl() {
     const raw = localStorage.getItem('kenowa_ollama_url') || 'http://localhost:11434';
     return raw.trim().replace(/\/+$/, '') || 'http://localhost:11434';
 }
+
+const PROVIDER_LABELS = {
+    gemini: 'Google Gemini', openrouter: 'OpenRouter', groq: 'Groq', mistral: 'Mistral AI',
+    cloudflare_ai_gateway: 'Cloudflare AI Gateway', ollama_local: 'Ollama Local', ollama_cloud: 'Ollama Cloud'
+};
+function providerKeyName(provider) {
+    if (provider === 'openrouter') return 'kenowa_openrouter_key';
+    if (provider === 'groq') return 'kenowa_groq_key';
+    if (provider === 'mistral') return 'kenowa_mistral_key';
+    if (provider === 'cloudflare_ai_gateway') return 'kenowa_cloudflare_key';
+    if (provider === 'ollama_cloud' || provider === 'ollama') return 'kenowa_ollama_key';
+    if (provider === 'ollama_local') return 'kenowa_ollama_local_key';
+    return 'kenowa_api_key';
+}
+function getProviderApiKey(provider) { return localStorage.getItem(providerKeyName(provider)) || ''; }
+function getFallbackOrder() {
+    return String(localStorage.getItem('kenowa_fallback_order') || 'groq,mistral,cloudflare_ai_gateway,openrouter,gemini,ollama_cloud')
+        .split(',').map(v => v.trim()).filter((v, i, a) => v && a.indexOf(v) === i);
+}
+function isAutoFallbackEnabled() { return localStorage.getItem('kenowa_auto_fallback') !== 'false'; }
+function isQuotaOrAuthError(error) {
+    const msg = String(error?.message || error || '').toLowerCase();
+    return [401, 403, 408, 409, 429, 500, 502, 503, 529].some(code => msg.includes(`http ${code}`) || msg.includes(`error ${code}`) || msg.includes(`status ${code}`))
+        || /quota|rate.?limit|too many requests|token limit|insufficient_quota|billing|capacity|temporarily unavailable|credits?/.test(msg);
+}
+function getFallbackConfig(current, attempted = new Set()) {
+    if (!isAutoFallbackEnabled()) return null;
+    const providers = getFallbackOrder();
+    for (const provider of providers) {
+        if (provider === current.provider || attempted.has(provider)) continue;
+        const key = getProviderApiKey(provider);
+        if (provider !== 'ollama_local' && !key) continue;
+        const model = getSavedModelForProvider(provider);
+        if (!model) continue;
+        return { provider, model, apiKey: key, ollamaUrl: getOllamaBaseUrl(), capsules: current.capsules || [] };
+    }
+    return null;
+}
+function persistActiveProviderConfig(config) {
+    localStorage.setItem('kenowa_provider', config.provider);
+    persistSelectedModel(config.provider, config.model);
+}
+function getOpenAICompatibleConfig(provider, model, apiKey) {
+    if (provider === 'groq') return { url: 'https://api.groq.com/openai/v1/chat/completions', headers: { Authorization: `Bearer ${apiKey}` } };
+    if (provider === 'mistral') return { url: 'https://api.mistral.ai/v1/chat/completions', headers: { Authorization: `Bearer ${apiKey}` } };
+    if (provider === 'cloudflare_ai_gateway') {
+        const account = (localStorage.getItem('kenowa_cloudflare_account_id') || '').trim();
+        const gateway = (localStorage.getItem('kenowa_cloudflare_gateway_id') || '').trim();
+        if (!account || !gateway) throw new Error('Cloudflare AI Gateway Account ID and Gateway ID are required.');
+        const gatewayToken = localStorage.getItem('kenowa_cloudflare_gateway_token') || '';
+        const headers = { Authorization: `Bearer ${apiKey}` };
+        if (gatewayToken) headers['cf-aig-authorization'] = `Bearer ${gatewayToken}`;
+        return { url: `https://gateway.ai.cloudflare.com/v1/${encodeURIComponent(account)}/${encodeURIComponent(gateway)}/compat/chat/completions`, headers };
+    }
+    return null;
+}
 const BUILTIN_MODELS = {
     gemini: [
         { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash ⚡' },
         { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro 🧠' },
         { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash Exp' }
+    ],
+    groq: [
+        { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B (Groq)' },
+        { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B (Groq)' },
+        { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B (Groq)' }
+    ],
+    mistral: [
+        { id: 'mistral-large-latest', name: 'Mistral Large (Latest)' },
+        { id: 'mistral-small-latest', name: 'Mistral Small (Latest)' },
+        { id: 'codestral-latest', name: 'Codestral (Latest)' },
+        { id: 'pixtral-large-latest', name: 'Pixtral Large (Latest)' }
+    ],
+    cloudflare_ai_gateway: [
+        { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini (Gateway)' },
+        { id: 'google-ai-studio/gemini-2.0-flash', name: 'Gemini 2.0 Flash (Gateway)' },
+        { id: 'groq/llama-3.3-70b-versatile', name: 'Llama 3.3 70B (Gateway)' }
     ],
     openrouter: [
         { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Free' },
@@ -50,6 +122,9 @@ const BUILTIN_MODELS = {
 
 function defaultModelForProvider(provider) {
     if (provider === 'openrouter') return 'openai/gpt-4o-mini';
+    if (provider === 'groq') return 'llama-3.3-70b-versatile';
+    if (provider === 'cloudflare_ai_gateway') return 'openai/gpt-4o-mini';
+    if (provider === 'mistral') return 'mistral-small-latest';
     if (provider === 'ollama_cloud' || provider === 'ollama') return 'gemma4:31b';
     if (provider === 'ollama_local') return 'llama3.2:latest';
     return MODEL_QUICK;
@@ -484,12 +559,7 @@ function startIntervals() {
 // ── Provider model discovery ──────────────────────────────────
 const MODEL_CACHE_TTL = 24 * 60 * 60 * 1000;
 
-function providerKeyName(provider) {
-    if (provider === 'openrouter') return 'kenowa_openrouter_key';
-    if (provider === 'ollama_cloud' || provider === 'ollama') return 'kenowa_ollama_key';
-    if (provider === 'ollama_local') return 'kenowa_ollama_local_key';
-    return 'kenowa_api_key';
-}
+// providerKeyName is defined near the provider helpers above.
 
 const CAPSULE_STORAGE_KEY = 'kenowa_capsules_v1';
 const CAPSULE_MAX_FILES = 5;
@@ -816,10 +886,16 @@ async function syncProviderConfigToBackground() {
         keys: {
             gemini: localStorage.getItem('kenowa_api_key') || '',
             openrouter: localStorage.getItem('kenowa_openrouter_key') || '',
+            groq: localStorage.getItem('kenowa_groq_key') || '',
+            mistral: localStorage.getItem('kenowa_mistral_key') || '',
+            cloudflare_ai_gateway: localStorage.getItem('kenowa_cloudflare_key') || '',
             ollama: localStorage.getItem('kenowa_ollama_key') || '',
             ollama_cloud: localStorage.getItem('kenowa_ollama_key') || '',
             ollama_local: localStorage.getItem('kenowa_ollama_local_key') || ''
         },
+        cloudflareAccountId: localStorage.getItem('kenowa_cloudflare_account_id') || '',
+        cloudflareGatewayId: localStorage.getItem('kenowa_cloudflare_gateway_id') || '',
+        cloudflareGatewayToken: localStorage.getItem('kenowa_cloudflare_gateway_token') || '',
         capsules: selected.capsules
     };
     await chrome.storage.local.set({ kenowaProviderConfig: config });
@@ -853,7 +929,7 @@ function normalizeProviderModels(provider, data) {
             .map(m => ({ id: String(m.name || '').replace(/^models\//, ''), name: m.displayName || m.name, provider, context: m.inputTokenLimit || 0, vision: (m.supportedGenerationMethods || []).includes('generateContent') }))
             .filter(m => m.id);
     }
-    if (provider === 'openrouter') {
+    if (provider === 'openrouter' || provider === 'groq' || provider === 'mistral' || provider === 'cloudflare_ai_gateway') {
         return (data.data || []).map(m => ({ id: m.id, name: m.name || m.id, provider, context: m.context_length || 0, vision: (m.architecture?.input_modalities || []).includes('image') }))
             .filter(m => m.id);
     }
@@ -869,6 +945,18 @@ async function discoverProviderModels(provider, apiKey) {
         url = `${BASE_URL}?key=${encodeURIComponent(apiKey)}`;
     } else if (provider === 'openrouter') {
         url = 'https://openrouter.ai/api/v1/models';
+        headers.Authorization = `Bearer ${apiKey}`;
+    } else if (provider === 'groq') {
+        url = 'https://api.groq.com/openai/v1/models';
+        headers.Authorization = `Bearer ${apiKey}`;
+    } else if (provider === 'mistral') {
+        url = 'https://api.mistral.ai/v1/models';
+        headers.Authorization = `Bearer ${apiKey}`;
+    } else if (provider === 'cloudflare_ai_gateway') {
+        const account = (localStorage.getItem('kenowa_cloudflare_account_id') || '').trim();
+        const gateway = (localStorage.getItem('kenowa_cloudflare_gateway_id') || '').trim();
+        if (!account || !gateway) throw new Error('Add Cloudflare Account ID and Gateway ID first.');
+        url = `https://gateway.ai.cloudflare.com/v1/${encodeURIComponent(account)}/${encodeURIComponent(gateway)}/compat/models`;
         headers.Authorization = `Bearer ${apiKey}`;
     } else if (provider === 'ollama_cloud' || provider === 'ollama') {
         url = 'https://ollama.com/api/tags';
@@ -922,7 +1010,7 @@ function renderProviderModels(provider, selectedModel) {
     select.replaceChildren();
 
     const group = document.createElement('optgroup');
-    const labelName = provider === 'openrouter' ? 'OpenRouter' : provider === 'ollama_local' ? 'Ollama Local' : (provider === 'ollama_cloud' || provider === 'ollama') ? 'Ollama Cloud' : 'Google Gemini';
+    const labelName = provider === 'openrouter' ? 'OpenRouter' : provider === 'groq' ? 'Groq' : provider === 'mistral' ? 'Mistral AI' : provider === 'cloudflare_ai_gateway' ? 'Cloudflare AI Gateway' : provider === 'ollama_local' ? 'Ollama Local' : (provider === 'ollama_cloud' || provider === 'ollama') ? 'Ollama Cloud' : 'Google Gemini';
     group.label = `${labelName} · Available models`;
 
     const modelsList = (cached?.models && cached.models.length > 0) ? cached.models : (BUILTIN_MODELS[provider] || BUILTIN_MODELS.ollama_cloud || []);
@@ -978,12 +1066,18 @@ function updateProviderUI() {
     if (provider === 'ollama') provider = 'ollama_cloud';
     const geminiGroup = document.getElementById('gemini-settings-group');
     const openrouterGroup = document.getElementById('openrouter-settings-group');
+    const groqGroup = document.getElementById('groq-settings-group');
+    const mistralGroup = document.getElementById('mistral-settings-group');
+    const cloudflareGroup = document.getElementById('cloudflare-ai-gateway-settings-group');
     const ollamaLocalGroup = document.getElementById('ollama-local-settings-group');
     const ollamaCloudGroup = document.getElementById('ollama-cloud-settings-group');
     const hint = document.getElementById('provider-hint');
 
     if (geminiGroup) geminiGroup.style.display = provider === 'gemini' ? 'block' : 'none';
     if (openrouterGroup) openrouterGroup.style.display = provider === 'openrouter' ? 'block' : 'none';
+    if (groqGroup) groqGroup.style.display = provider === 'groq' ? 'block' : 'none';
+    if (mistralGroup) mistralGroup.style.display = provider === 'mistral' ? 'block' : 'none';
+    if (cloudflareGroup) cloudflareGroup.style.display = provider === 'cloudflare_ai_gateway' ? 'block' : 'none';
     if (ollamaLocalGroup) ollamaLocalGroup.style.display = provider === 'ollama_local' ? 'block' : 'none';
     if (ollamaCloudGroup) ollamaCloudGroup.style.display = (provider === 'ollama_cloud' || provider === 'ollama') ? 'block' : 'none';
 
@@ -992,6 +1086,12 @@ function updateProviderUI() {
             hint.innerHTML = '⚡ <strong>Google Gemini:</strong> Fast multimodal reasoning. Requires free API key from Google AI Studio.';
         } else if (provider === 'openrouter') {
             hint.innerHTML = '🌐 <strong>OpenRouter:</strong> Multi-model gateway (Claude, GPT-4o, DeepSeek R1). Requires OpenRouter key.';
+        } else if (provider === 'groq') {
+            hint.innerHTML = '⚡ <strong>Groq:</strong> Very fast OpenAI-compatible inference. Add your Groq API key.';
+        } else if (provider === 'mistral') {
+            hint.innerHTML = '🟠 <strong>Mistral AI:</strong> Official Mistral API with Large, Small, Codestral, and Pixtral models.';
+        } else if (provider === 'cloudflare_ai_gateway') {
+            hint.innerHTML = '☁️ <strong>Cloudflare AI Gateway:</strong> Route compatible models through your Cloudflare gateway with analytics, caching, and provider fallback.';
         } else if (provider === 'ollama_local') {
             hint.innerHTML = '💻 <strong>Local Ollama:</strong> 100% private & offline. Connects to your local machine (default: <code>http://localhost:11434</code>). No API key needed for local models.';
         } else if (provider === 'ollama_cloud' || provider === 'ollama') {
@@ -1076,6 +1176,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const providerInput = document.getElementById('settings-provider-input');
     const keyInput = document.getElementById('settings-key-input');
     const openRouterKeyInput = document.getElementById('settings-openrouter-key-input');
+    const groqKeyInput = document.getElementById('settings-groq-key-input');
+    const mistralKeyInput = document.getElementById('settings-mistral-key-input');
+    const cloudflareKeyInput = document.getElementById('settings-cloudflare-key-input');
+    const cloudflareAccountInput = document.getElementById('settings-cloudflare-account-input');
+    const cloudflareGatewayInput = document.getElementById('settings-cloudflare-gateway-input');
+    const cloudflareTokenInput = document.getElementById('settings-cloudflare-token-input');
+    const fallbackEnabledInput = document.getElementById('settings-auto-fallback-input');
+    const fallbackOrderInput = document.getElementById('settings-fallback-order-input');
     const ollamaLocalKeyInput = document.getElementById('settings-ollama-local-key-input');
     const ollamaCloudKeyInput = document.getElementById('settings-ollama-cloud-key-input');
     const ollamaUrlInput = document.getElementById('settings-ollama-url-input');
@@ -1096,6 +1204,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (keyInput) keyInput.value = localStorage.getItem('kenowa_api_key') || '';
         if (openRouterKeyInput) openRouterKeyInput.value = localStorage.getItem('kenowa_openrouter_key') || '';
+        if (groqKeyInput) groqKeyInput.value = localStorage.getItem('kenowa_groq_key') || '';
+        if (mistralKeyInput) mistralKeyInput.value = localStorage.getItem('kenowa_mistral_key') || '';
+        if (cloudflareKeyInput) cloudflareKeyInput.value = localStorage.getItem('kenowa_cloudflare_key') || '';
+        if (cloudflareAccountInput) cloudflareAccountInput.value = localStorage.getItem('kenowa_cloudflare_account_id') || '';
+        if (cloudflareGatewayInput) cloudflareGatewayInput.value = localStorage.getItem('kenowa_cloudflare_gateway_id') || '';
+        if (cloudflareTokenInput) cloudflareTokenInput.value = localStorage.getItem('kenowa_cloudflare_gateway_token') || '';
+        if (fallbackEnabledInput) fallbackEnabledInput.checked = isAutoFallbackEnabled();
+        if (fallbackOrderInput) fallbackOrderInput.value = getFallbackOrder().join(',');
         if (ollamaLocalKeyInput) ollamaLocalKeyInput.value = localStorage.getItem('kenowa_ollama_local_key') || '';
         if (ollamaCloudKeyInput) ollamaCloudKeyInput.value = localStorage.getItem('kenowa_ollama_key') || '';
         if (ollamaUrlInput) ollamaUrlInput.value = localStorage.getItem('kenowa_ollama_url') || 'http://localhost:11434';
@@ -1150,7 +1266,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try { await syncProviderConfigToBackground(); }
         catch (error) { setModelsStatus(`Model selected but local sync failed: ${error.message}`, 'error'); }
     });
-    [keyInput, openRouterKeyInput, ollamaLocalKeyInput, ollamaCloudKeyInput].forEach(input => {
+    [keyInput, openRouterKeyInput, groqKeyInput, mistralKeyInput, cloudflareKeyInput, ollamaLocalKeyInput, ollamaCloudKeyInput].forEach(input => {
         if (!input) return;
         let timer;
         input.addEventListener('input', () => {
@@ -1158,6 +1274,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (input.value.trim().length < 8) return;
             timer = setTimeout(() => {
                 const provider = input.id === 'settings-openrouter-key-input' ? 'openrouter'
+                    : input.id === 'settings-groq-key-input' ? 'groq'
+                    : input.id === 'settings-mistral-key-input' ? 'mistral'
+                    : input.id === 'settings-cloudflare-key-input' ? 'cloudflare_ai_gateway'
                     : input.id === 'settings-ollama-cloud-key-input' ? 'ollama_cloud'
                     : input.id === 'settings-ollama-local-key-input' ? 'ollama_local' : 'gemini';
                 if (providerInput?.value === provider) refreshProviderModels(provider, input.value.trim(), modelInput?.value || '');
@@ -1173,6 +1292,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (providerInput) localStorage.setItem('kenowa_provider', providerInput.value);
         if (keyInput) localStorage.setItem('kenowa_api_key', keyInput.value);
         if (openRouterKeyInput) localStorage.setItem('kenowa_openrouter_key', openRouterKeyInput.value);
+        if (groqKeyInput) localStorage.setItem('kenowa_groq_key', groqKeyInput.value);
+        if (mistralKeyInput) localStorage.setItem('kenowa_mistral_key', mistralKeyInput.value);
+        if (cloudflareKeyInput) localStorage.setItem('kenowa_cloudflare_key', cloudflareKeyInput.value);
+        if (cloudflareAccountInput) localStorage.setItem('kenowa_cloudflare_account_id', cloudflareAccountInput.value.trim());
+        if (cloudflareGatewayInput) localStorage.setItem('kenowa_cloudflare_gateway_id', cloudflareGatewayInput.value.trim());
+        if (cloudflareTokenInput) localStorage.setItem('kenowa_cloudflare_gateway_token', cloudflareTokenInput.value.trim());
+        localStorage.setItem('kenowa_auto_fallback', fallbackEnabledInput?.checked === false ? 'false' : 'true');
+        localStorage.setItem('kenowa_fallback_order', fallbackOrderInput?.value || getFallbackOrder().join(','));
         if (ollamaLocalKeyInput) localStorage.setItem('kenowa_ollama_local_key', ollamaLocalKeyInput.value);
         if (ollamaCloudKeyInput) localStorage.setItem('kenowa_ollama_key', ollamaCloudKeyInput.value);
         if (ollamaUrlInput) localStorage.setItem('kenowa_ollama_url', (ollamaUrlInput.value.trim() || 'http://localhost:11434').replace(/\/+$/, ''));
@@ -1554,7 +1681,7 @@ async function scanCurrentPage() {
 }
 
 // ── Send & API ─────────────────────────────────────────────────
-async function handleSend(textOverride=null) {
+async function handleSend(textOverride=null, executionOptions={}) {
     let text=textOverride||(userInput?userInput.value.trim():'');
     const hasImages=currentDraftImages.length>0;
     if(!text&&!hasImages) return;
@@ -1598,7 +1725,7 @@ async function handleSend(textOverride=null) {
     const sysPrompt = getSystemPrompt() + capsuleContext;
 
     try {
-        const aiConfig = getSelectedAIConfig();
+        const aiConfig = executionOptions.config || getSelectedAIConfig();
         const provider = aiConfig.provider;
         const model = aiConfig.model;
         const apiKey = aiConfig.apiKey;
@@ -1646,6 +1773,21 @@ async function handleSend(textOverride=null) {
                 const aiMessage = sm.finalize(retrievedSources, text);
                 if (!isExamMode && !isSQMode) setTimeout(() => getAISuggestions(text, aiMessage), 500);
             }
+        } else if(provider==='groq' || provider==='mistral' || provider==='cloudflare_ai_gateway') {
+            if(!apiKey){ appendMessage('ai',`⚙️ No ${PROVIDER_LABELS[provider]} API Key found. Open Settings to add one.`); return; }
+            const contentArr=[]; if(text) contentArr.push({type:'text',text});
+            for(const img of imagesToSend) contentArr.push({type:'image_url',image_url:{url:img}});
+            if(!contentArr.length) return;
+            const compat = getOpenAICompatibleConfig(provider, model, apiKey);
+            url = compat.url; headers = { 'Content-Type':'application/json', ...compat.headers };
+            body = JSON.stringify({model, messages:[{role:'system',content:sysPrompt},{role:'user',content:contentArr}], stream:true});
+            const sm = appendMessageStream(lockedChatId, indicatorText);
+            const response = await fetch(url,{method:'POST',headers,body,signal:requestController.signal});
+            if(!response.ok){ let e=`API error ${response.status}`; try{const ed=await response.json();e=ed.error?.message||ed.error||JSON.stringify(ed);}catch(_){} throw new Error(e); }
+            const reader=response.body.getReader(); const dec=new TextDecoder(); let buf='';
+            while(true){ const {done,value}=await reader.read(); if(done) break; buf+=dec.decode(value,{stream:true}); const lines=buf.split('\n'); buf=lines.pop()||''; for(const line of lines){ if(!line.startsWith('data: ')) continue; const x=line.slice(6).trim(); if(!x||x==='[DONE]') continue; try{const d=JSON.parse(x); const c=d.choices?.[0]?.delta?.content||''; if(c) sm.update(c);}catch(_){} } }
+            const aiMessage = sm.finalize(retrievedSources, text);
+            if (!isExamMode && !isSQMode) setTimeout(() => getAISuggestions(text, aiMessage), 500);
         } else if(provider==='openrouter'){
             if(!apiKey){ appendMessage('ai','⚙️ No OpenRouter API Key found. Open Settings to add one.'); return; }
             const contentArr=[]; if(text) contentArr.push({type:'text',text});
@@ -1801,12 +1943,23 @@ async function handleSend(textOverride=null) {
             const aiMessage = sm.finalize(retrievedSources, text);
             if (!isExamMode && !isSQMode) setTimeout(() => getAISuggestions(text, aiMessage), 500);
         } else {
-            appendMessage('ai', `⚠️ Unsupported provider: ${provider}. Open Settings and select Google Gemini, OpenRouter, Ollama Local, or Ollama Cloud.`, [], false, false, lockedChatId);
+            appendMessage('ai', `⚠️ Unsupported provider: ${provider}. Open Settings and select Gemini, OpenRouter, Groq, Mistral AI, Cloudflare AI Gateway, Ollama Local, or Ollama Cloud.`, [], false, false, lockedChatId);
             hideTypingIndicator();
             toggleSendButton(false);
             return;
         }
     } catch(err){
+        const attemptedProviders = executionOptions.attemptedProviders || new Set([aiConfig.provider]);
+        attemptedProviders.add(aiConfig.provider);
+        const fallbackConfig = !executionOptions.fallbackTried && isQuotaOrAuthError(err) ? getFallbackConfig(aiConfig, attemptedProviders) : null;
+        if (fallbackConfig) {
+            hideTypingIndicator();
+            toggleSendButton(false);
+            persistActiveProviderConfig(fallbackConfig);
+            showToast(`Primary provider unavailable. Switching to ${PROVIDER_LABELS[fallbackConfig.provider]} · ${fallbackConfig.model}`, 'success');
+            attemptedProviders.add(fallbackConfig.provider);
+            return handleSend(text, { config: fallbackConfig, fallbackTried: false, attemptedProviders });
+        }
         hideTypingIndicator();
         if(requestTimedOut) appendMessage('ai','⚠️ The model did not respond within 90 seconds. Check the provider, API key, and selected model in Settings, then try again.',[],false,false,lockedChatId);
         else if(err.name==='AbortError'&&activeSelectionRequest) appendMessage('ai','⚠️ The selected-text request was cancelled before the model replied.',[],false,false,lockedChatId);
@@ -2057,6 +2210,11 @@ async function apiGenerateText(prompt) {
     if (provider === 'gemini') {
         url = `${BASE_URL}${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
         body = JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] });
+    } else if (provider === 'groq' || provider === 'mistral' || provider === 'cloudflare_ai_gateway') {
+        const compat = getOpenAICompatibleConfig(provider, model, apiKey);
+        url = compat.url;
+        headers = { 'Content-Type': 'application/json', ...compat.headers };
+        body = JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] });
     } else if (provider === 'openrouter') {
         url = 'https://openrouter.ai/api/v1/chat/completions';
         body = JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] });
@@ -2090,7 +2248,7 @@ async function apiGenerateText(prompt) {
         }
         const data = await res.json();
         if (provider === 'gemini') return data.candidates?.[0]?.content?.parts?.map(p => p.text).join('').trim() || null;
-        if (provider === 'openrouter') {
+        if (provider === 'openrouter' || provider === 'groq' || provider === 'mistral' || provider === 'cloudflare_ai_gateway') {
             const content = data.choices?.[0]?.message?.content;
             return (Array.isArray(content) ? content.map(part => part.text || '').join('') : String(content || '')).trim() || null;
         }
