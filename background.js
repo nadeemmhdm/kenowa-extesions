@@ -164,9 +164,10 @@ async function generateSelectionAnswer(text, config, history = [], options = {})
     ).map(turn => ({ role: turn.role, content: turn.content.trim().slice(0, 8000) })).filter(turn => turn.content);
     const isOllamaLocal = provider === 'ollama_local';
     const isOllamaCloud = provider === 'ollama_cloud' || provider === 'ollama';
-    if (!['gemini', 'openrouter', 'groq', 'mistral', 'cloudflare_ai_gateway', 'ollama', 'ollama_local', 'ollama_cloud'].includes(provider)) throw new Error('No supported AI provider is selected in Kenowa settings.');
+    const isNoora = provider === 'noora';
+    if (!['gemini', 'openrouter', 'groq', 'mistral', 'cloudflare_ai_gateway', 'ollama', 'ollama_local', 'ollama_cloud', 'noora'].includes(provider)) throw new Error('No supported AI provider is selected in Kenowa settings.');
     if (!model) throw new Error('No model is selected. Open Kenowa Settings, choose a model, and save.');
-    if (!apiKey && !isOllamaLocal) throw new Error(`No ${isOllamaCloud ? 'Ollama Cloud' : provider} API key is saved for background selection requests. Open Kenowa Settings and save the key once.`);
+    if (!apiKey && !isOllamaLocal && !isNoora) throw new Error(`No ${isOllamaCloud ? 'Ollama Cloud' : provider} API key is saved for background selection requests. Open Kenowa Settings and save the key once.`);
 
     const controller = options.controller || new AbortController();
     const timeoutId = setTimeout(() => controller.abort('timeout'), 90000);
@@ -220,6 +221,18 @@ async function generateSelectionAnswer(text, config, history = [], options = {})
             else url = 'https://api.mistral.ai/v1/chat/completions';
             headers.Authorization = `Bearer ${apiKey}`;
             body = JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, ...providerHistory, { role: 'user', content: promptText }], ...(provider === 'groq' ? { temperature: 1, max_completion_tokens: 2048, top_p: 1, stop: null, ...(String(model).startsWith('openai/gpt-oss') ? { reasoning_effort: 'medium' } : {}) } : {}), stream: false });
+        } else if (provider === 'noora') {
+            let nooraBase = String(config?.nooraUrl || 'http://10.30.197.9:8080/v1').trim().replace(/\/+$/, '') || 'http://10.30.197.9:8080/v1';
+            if (nooraBase.includes('192.168.1.100')) nooraBase = 'http://10.30.197.9:8080/v1';
+            if (!nooraBase.endsWith('/v1')) nooraBase = `${nooraBase}/v1`;
+            url = `${nooraBase}/chat/completions`;
+            const key = apiKey || config?.keys?.noora || 'YOUR_API_KEY_HERE';
+            if (key) headers.Authorization = `Bearer ${key}`;
+            body = JSON.stringify({
+                model,
+                messages: [{ role: 'system', content: systemPrompt }, ...providerHistory, { role: 'user', content: promptText }],
+                stream: false
+            });
         } else if (provider === 'cloudflare_ai_gateway') {
             const account = String(config?.cloudflareAccountId || '').trim();
             const gateway = String(config?.cloudflareGatewayId || 'default').trim() || 'default';
@@ -255,6 +268,9 @@ async function generateSelectionAnswer(text, config, history = [], options = {})
             if (isOllamaLocal) {
                 throw new Error(`Could not connect to local Ollama at ${url}. Ensure Ollama is running ('ollama serve') and accessible. Network detail: ${error?.message || error}`);
             }
+            if (provider === 'noora') {
+                throw new Error(`Could not connect to Noora AI at ${url}. Ensure your local server is running on LAN (e.g. http://10.30.197.9:8080/v1). Network detail: ${error?.message || error}`);
+            }
             throw new Error(`Could not reach ${provider}: ${error?.message || error}`);
         }
         let data = {};
@@ -266,9 +282,13 @@ async function generateSelectionAnswer(text, config, history = [], options = {})
 
         let answer = '';
         if (provider === 'gemini') answer = (data.candidates?.[0]?.content?.parts || []).map(part => part.text || '').join('');
-        else if (provider === 'openrouter' || provider === 'groq' || provider === 'mistral') {
-            const content = data.choices?.[0]?.message?.content;
-            answer = Array.isArray(content) ? content.map(part => part.text || '').join('') : String(content || '');
+        else if (provider === 'openrouter' || provider === 'groq' || provider === 'mistral' || provider === 'noora') {
+            const choice = data.choices?.[0];
+            const content = choice?.message?.content ?? choice?.text ?? choice?.delta?.content ?? data.response ?? data.message?.content ?? '';
+            answer = Array.isArray(content) ? content.map(part => (typeof part === 'string' ? part : (part?.text || part?.content || ''))).join('') : String(content || '');
+            if (!answer.trim() && choice?.message?.reasoning_content) {
+                answer = String(choice.message.reasoning_content);
+            }
         } else if (provider === 'cloudflare_ai_gateway') {
             answer = typeof data?.result?.response === 'string' ? data.result.response : String(data?.result || '');
         } else answer = String(data.message?.content || '');
@@ -278,6 +298,23 @@ async function generateSelectionAnswer(text, config, history = [], options = {})
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message?.type === 'kenowa-proxy-fetch') {
+        fetch(message.url, {
+            method: message.method || 'POST',
+            headers: message.headers || {},
+            body: message.body
+        })
+        .then(async res => {
+            const rawText = await res.text();
+            let data = null;
+            try { data = JSON.parse(rawText); } catch (_) {}
+            sendResponse({ ok: res.ok, status: res.status, data, rawText });
+        })
+        .catch(err => {
+            sendResponse({ ok: false, error: err.message || String(err) });
+        });
+        return true;
+    }
     if (message?.type === 'kenowa-check-update') {
         checkGithubUpdate().then(info => sendResponse({ ok: true, updateInfo: info })).catch(err => sendResponse({ ok: false, error: err.message }));
         return true;

@@ -7,7 +7,7 @@ const BASE_URL  = "https://generativelanguage.googleapis.com/v1beta/models/";
 const MODEL_QUICK = "gemini-2.0-flash";
 const MODEL_DEEP  = "gemini-1.5-pro";
 const MODEL_IMAGE = "gemini-2.0-flash-exp";
-const APP_VERSION = "2.19.4";
+const APP_VERSION = "2.19.5";
 
 function providerModelKey(provider) { return `kenowa_model_${provider}`; }
 function getOllamaBaseUrl() {
@@ -15,9 +15,38 @@ function getOllamaBaseUrl() {
     return raw.trim().replace(/\/+$/, '') || 'http://localhost:11434';
 }
 
+function getNooraEndpoints(customUrl = null) {
+    let raw = (customUrl || localStorage.getItem('kenowa_noora_url') || 'http://10.30.197.9:8080/v1').trim().replace(/\/+$/, '');
+    if (!raw || raw.includes('192.168.1.100')) {
+        raw = 'http://10.30.197.9:8080/v1';
+        localStorage.setItem('kenowa_noora_url', raw);
+    }
+    let v1Base = raw;
+    let root = raw;
+    if (raw.endsWith('/v1')) {
+        root = raw.slice(0, -3).replace(/\/+$/, '') || raw;
+    } else {
+        v1Base = `${raw}/v1`;
+    }
+    return {
+        root,
+        v1Base,
+        models: `${v1Base}/models`,
+        chatCompletions: `${v1Base}/chat/completions`,
+        completions: `${v1Base}/completions`,
+        health: `${root}/health`,
+        serverStatus: `${root}/api/server/status`
+    };
+}
+
+function getNooraBaseUrl() {
+    return getNooraEndpoints().v1Base;
+}
+
 const PROVIDER_LABELS = {
     gemini: 'Google Gemini', openrouter: 'OpenRouter', groq: 'Groq', mistral: 'Mistral AI',
-    cloudflare_ai_gateway: 'Cloudflare AI Gateway', ollama_local: 'Ollama Local', ollama_cloud: 'Ollama Cloud'
+    cloudflare_ai_gateway: 'Cloudflare AI Gateway', ollama_local: 'Ollama Local', ollama_cloud: 'Ollama Cloud',
+    noora: 'Noora'
 };
 function providerKeyName(provider) {
     if (provider === 'openrouter') return 'kenowa_openrouter_key';
@@ -26,11 +55,19 @@ function providerKeyName(provider) {
     if (provider === 'cloudflare_ai_gateway') return 'kenowa_cloudflare_key';
     if (provider === 'ollama_cloud' || provider === 'ollama') return 'kenowa_ollama_key';
     if (provider === 'ollama_local') return 'kenowa_ollama_local_key';
+    if (provider === 'noora') return 'kenowa_noora_key';
     return 'kenowa_api_key';
 }
-function getProviderApiKey(provider) { return localStorage.getItem(providerKeyName(provider)) || ''; }
+function getProviderApiKey(provider) {
+    if (provider === 'noora') {
+        const key = localStorage.getItem('kenowa_noora_key');
+        if (!key || key === 'sk-local-YOUR_GENERATED_KEY') return 'YOUR_API_KEY_HERE';
+        return key;
+    }
+    return localStorage.getItem(providerKeyName(provider)) || '';
+}
 function getFallbackOrder() {
-    return String(localStorage.getItem('kenowa_fallback_order') || 'groq,mistral,cloudflare_ai_gateway,openrouter,gemini,ollama_cloud')
+    return String(localStorage.getItem('kenowa_fallback_order') || 'groq,mistral,noora,cloudflare_ai_gateway,openrouter,gemini,ollama_cloud')
         .split(',').map(v => v.trim()).filter((v, i, a) => v && a.indexOf(v) === i);
 }
 function isAutoFallbackEnabled() { return localStorage.getItem('kenowa_auto_fallback') !== 'false'; }
@@ -45,10 +82,10 @@ function getFallbackConfig(current, attempted = new Set()) {
     for (const provider of providers) {
         if (provider === current.provider || attempted.has(provider)) continue;
         const key = getProviderApiKey(provider);
-        if (provider !== 'ollama_local' && !key) continue;
+        if (provider !== 'ollama_local' && provider !== 'noora' && !key) continue;
         const model = getSavedModelForProvider(provider);
         if (!model) continue;
-        return { provider, model, apiKey: key, ollamaUrl: getOllamaBaseUrl(), capsules: current.capsules || [] };
+        return { provider, model, apiKey: key, ollamaUrl: getOllamaBaseUrl(), nooraUrl: getNooraBaseUrl(), capsules: current.capsules || [] };
     }
     return null;
 }
@@ -58,11 +95,67 @@ function persistActiveProviderConfig(config) {
 }
 function getOpenAIContent(value) {
     if (typeof value === 'string') return value;
-    if (Array.isArray(value)) return value.map(part => typeof part === 'string' ? part : (part?.text || '')).join('');
+    if (Array.isArray(value)) {
+        return value.map(part => {
+            if (typeof part === 'string') return part;
+            if (part && typeof part.text === 'string') return part.text;
+            if (part && typeof part.content === 'string') return part.content;
+            return '';
+        }).join('');
+    }
+    if (value && typeof value === 'object') {
+        if (typeof value.text === 'string') return value.text;
+        if (typeof value.content === 'string') return value.content;
+    }
     return '';
 }
-function getOpenAIDeltaText(data) { return getOpenAIContent(data?.choices?.[0]?.delta?.content); }
-function getOpenAIMessageText(data) { return getOpenAIContent(data?.choices?.[0]?.message?.content); }
+function getOpenAIDeltaText(data) {
+    if (!data) return '';
+    const choice = data?.choices?.[0];
+    if (choice) {
+        if (choice.delta) {
+            const content = getOpenAIContent(choice.delta.content);
+            if (content) return content;
+            const reasoning = getOpenAIContent(choice.delta.reasoning_content || choice.delta.reasoning || choice.delta.thought);
+            if (reasoning) return reasoning;
+            if (typeof choice.delta.text === 'string' && choice.delta.text) return choice.delta.text;
+        }
+        if (typeof choice.text === 'string' && choice.text) return choice.text;
+        if (choice.message) {
+            const msgContent = getOpenAIContent(choice.message.content);
+            if (msgContent) return msgContent;
+            const reasoning = getOpenAIContent(choice.message.reasoning_content || choice.message.reasoning);
+            if (reasoning) return reasoning;
+        }
+    }
+    if (typeof data.response === 'string' && data.response) return data.response;
+    if (typeof data.message?.content === 'string' && data.message.content) return data.message.content;
+    if (typeof data.text === 'string' && data.text) return data.text;
+    return '';
+}
+function getOpenAIMessageText(data) {
+    if (!data) return '';
+    const choice = data?.choices?.[0];
+    if (choice) {
+        if (choice.message) {
+            const content = getOpenAIContent(choice.message.content);
+            const reasoning = getOpenAIContent(choice.message.reasoning_content || choice.message.reasoning);
+            if (content) return content;
+            if (reasoning) return reasoning;
+        }
+        if (typeof choice.text === 'string' && choice.text) return choice.text;
+        if (choice.delta) {
+            const content = getOpenAIContent(choice.delta.content);
+            if (content) return content;
+            const reasoning = getOpenAIContent(choice.delta.reasoning_content || choice.delta.reasoning || choice.delta.thought);
+            if (reasoning) return reasoning;
+        }
+    }
+    if (typeof data.response === 'string' && data.response) return data.response;
+    if (typeof data.message?.content === 'string' && data.message.content) return data.message.content;
+    if (typeof data.content === 'string' && data.content) return data.content;
+    return '';
+}
 function getOpenAIRequestOptions(provider, model) {
     if (provider !== 'groq') return {};
     const options = { temperature: 1, max_completion_tokens: 2048, top_p: 1, stop: null };
@@ -90,6 +183,11 @@ function getCloudflareRunText(data) {
 function getOpenAICompatibleConfig(provider, model, apiKey) {
     if (provider === 'groq') return { url: 'https://api.groq.com/openai/v1/chat/completions', headers: { Authorization: `Bearer ${apiKey}` } };
     if (provider === 'mistral') return { url: 'https://api.mistral.ai/v1/chat/completions', headers: { Authorization: `Bearer ${apiKey}` } };
+    if (provider === 'noora') {
+        const endpoints = getNooraEndpoints();
+        const headers = apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
+        return { url: endpoints.chatCompletions, completionsUrl: endpoints.completions, headers };
+    }
     return null;
 }
 const BUILTIN_MODELS = {
@@ -97,6 +195,10 @@ const BUILTIN_MODELS = {
         { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash ⚡' },
         { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro 🧠' },
         { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash Exp' }
+    ],
+    noora: [
+        { id: 'local-ai', name: 'Noora Local AI (local-ai)' },
+        { id: 'local-model', name: 'Local Model' }
     ],
     groq: [
         { id: 'openai/gpt-oss-120b', name: 'GPT-OSS 120B (Groq)' },
@@ -144,6 +246,7 @@ const BUILTIN_MODELS = {
 };
 
 function defaultModelForProvider(provider) {
+    if (provider === 'noora') return 'local-ai';
     if (provider === 'openrouter') return 'openai/gpt-4o-mini';
     if (provider === 'groq') return 'openai/gpt-oss-120b';
     if (provider === 'cloudflare_ai_gateway') return '@cf/moonshotai/kimi-k2.6';
@@ -175,8 +278,9 @@ function getSelectedAIConfig() {
     return {
         provider,
         model: getSavedModelForProvider(provider),
-        apiKey: localStorage.getItem(providerKeyName(provider)) || '',
+        apiKey: localStorage.getItem(providerKeyName(provider)) || (provider === 'noora' ? (localStorage.getItem('kenowa_noora_key') || 'sk-local-YOUR_GENERATED_KEY') : ''),
         ollamaUrl: getOllamaBaseUrl(),
+        nooraUrl: getNooraBaseUrl(),
         capsules: typeof getCapsules === 'function' ? getCapsules() : []
     };
 }
@@ -194,6 +298,7 @@ let currentChatId   = null;
 let chats           = {};
 let abortController = null;
 let isGenerating    = false;
+let activeStreamGlobal = null;
 let currentMode     = 'quick';
 let EXAM_DURATION   = 30 * 60 * 1000;
 let currentDraftImages     = [];
@@ -445,6 +550,13 @@ function hideLocalCooldownCover() {
 // ── Tab Tracking ───────────────────────────────────────────────
 // ── Load a chat silently (no sidebar toggle) ─────────────────
 function loadChatSilent(id) {
+    if (activeStreamGlobal) {
+        activeStreamGlobal.destroy();
+        activeStreamGlobal = null;
+    }
+    hideTypingIndicator();
+    isGenerating = false;
+    toggleSendButton(false);
     if (!chats[id]) return;
     currentChatId = id;
     if (messagesList) messagesList.innerHTML = '';
@@ -931,6 +1043,7 @@ async function syncProviderConfigToBackground() {
         provider: selected.provider,
         model: selected.model,
         ollamaUrl: getOllamaBaseUrl(),
+        nooraUrl: getNooraBaseUrl(),
         keys: {
             gemini: localStorage.getItem('kenowa_api_key') || '',
             openrouter: localStorage.getItem('kenowa_openrouter_key') || '',
@@ -939,7 +1052,8 @@ async function syncProviderConfigToBackground() {
             cloudflare_ai_gateway: localStorage.getItem('kenowa_cloudflare_key') || '',
             ollama: localStorage.getItem('kenowa_ollama_key') || '',
             ollama_cloud: localStorage.getItem('kenowa_ollama_key') || '',
-            ollama_local: localStorage.getItem('kenowa_ollama_local_key') || ''
+            ollama_local: localStorage.getItem('kenowa_ollama_local_key') || '',
+            noora: getProviderApiKey('noora')
         },
         cloudflareAccountId: localStorage.getItem('kenowa_cloudflare_account_id') || '',
         cloudflareGatewayId: localStorage.getItem('kenowa_cloudflare_gateway_id') || '',
@@ -949,10 +1063,31 @@ async function syncProviderConfigToBackground() {
     await chrome.storage.local.set({ kenowaProviderConfig: config });
 }
 
+async function checkNooraServerStatus() {
+    const endpoints = getNooraEndpoints();
+    const headers = {};
+    const key = getProviderApiKey('noora');
+    if (key) headers['Authorization'] = `Bearer ${key}`;
+    try {
+        const res = await fetch(endpoints.health, { method: 'GET', signal: AbortSignal.timeout(2500) }).catch(() => null);
+        if (res && res.ok) return { online: true, endpoint: endpoints.health, status: 'Healthy' };
+    } catch (_) {}
+    try {
+        const res = await fetch(endpoints.serverStatus, { method: 'GET', signal: AbortSignal.timeout(2500) }).catch(() => null);
+        if (res && res.ok) return { online: true, endpoint: endpoints.serverStatus, status: 'Online' };
+    } catch (_) {}
+    try {
+        const res = await fetch(endpoints.models, { method: 'GET', headers, signal: AbortSignal.timeout(2500) }).catch(() => null);
+        if (res && res.ok) return { online: true, endpoint: endpoints.models, status: 'Ready' };
+    } catch (_) {}
+    return { online: false, endpoint: endpoints.v1Base, status: 'Offline / Unreachable' };
+}
+
 function providerKeyInputId(provider) {
     if (provider === 'openrouter') return 'settings-openrouter-key-input';
     if (provider === 'ollama_cloud' || provider === 'ollama') return 'settings-ollama-cloud-key-input';
     if (provider === 'ollama_local') return 'settings-ollama-local-key-input';
+    if (provider === 'noora') return 'settings-noora-key-input';
     return 'settings-key-input';
 }
 
@@ -977,22 +1112,28 @@ function normalizeProviderModels(provider, data) {
             .map(m => ({ id: String(m.name || '').replace(/^models\//, ''), name: m.displayName || m.name, provider, context: m.inputTokenLimit || 0, vision: (m.supportedGenerationMethods || []).includes('generateContent') }))
             .filter(m => m.id);
     }
-    if (provider === 'openrouter' || provider === 'groq' || provider === 'mistral' || provider === 'cloudflare_ai_gateway') {
-        const modelData = Array.isArray(data) ? data : (data.data || []);
-        return modelData.filter(m => m.capabilities?.completion_chat !== false && !m.archived)
-            .map(m => ({ id: m.id, name: m.name || m.id, provider, context: m.context_length || m.max_context_length || 0, vision: Boolean(m.capabilities?.vision || (m.architecture?.input_modalities || []).includes('image')) }))
+    if (provider === 'openrouter' || provider === 'groq' || provider === 'mistral' || provider === 'cloudflare_ai_gateway' || provider === 'noora') {
+        const modelData = Array.isArray(data) ? data : (data.data || data.models || []);
+        const valid = modelData.filter(m => m && m.capabilities?.completion_chat !== false && !m.archived)
+            .map(m => ({ id: m.id || m.name, name: m.name || m.id, provider, context: m.context_length || m.max_context_length || 0, vision: Boolean(m.capabilities?.vision || (m.architecture?.input_modalities || []).includes('image')) }))
             .filter(m => m.id);
+        return valid.length ? valid : (BUILTIN_MODELS[provider] || []);
     }
     return (data.models || []).map(m => ({ id: m.name || m.model, name: m.name || m.model, provider, context: m.details?.context_length || 0, vision: (m.details?.families || []).some(f => /clip|vision/i.test(f)) }))
         .filter(m => m.id);
 }
 
 async function discoverProviderModels(provider, apiKey) {
-    if (provider !== 'ollama_local' && !apiKey) throw new Error('Add this provider’s API key first.');
+    if (provider !== 'ollama_local' && provider !== 'noora' && !apiKey) throw new Error('Add this provider’s API key first.');
     let url;
     const headers = { 'Content-Type': 'application/json' };
     if (provider === 'gemini') {
         url = `${BASE_URL}?key=${encodeURIComponent(apiKey)}`;
+    } else if (provider === 'noora') {
+        const endpoints = getNooraEndpoints();
+        url = endpoints.models;
+        const key = apiKey || localStorage.getItem('kenowa_noora_key') || 'sk-local-YOUR_GENERATED_KEY';
+        if (key) headers.Authorization = `Bearer ${key}`;
     } else if (provider === 'openrouter') {
         url = 'https://openrouter.ai/api/v1/models';
         headers.Authorization = `Bearer ${apiKey}`;
@@ -1021,7 +1162,22 @@ async function discoverProviderModels(provider, apiKey) {
         response = await fetch(url, { headers, signal: ctrl.signal });
         clearTimeout(tid);
     } catch (err) {
-        if (provider === 'ollama_local') {
+        if (provider === 'noora') {
+            console.warn(`Could not connect to Noora models endpoint (${url}):`, err.message);
+            try {
+                const proxyRes = await chrome.runtime.sendMessage({
+                    type: 'kenowa-proxy-fetch',
+                    url,
+                    method: 'GET',
+                    headers
+                });
+                if (proxyRes && proxyRes.ok && proxyRes.data) {
+                    const models = normalizeProviderModels(provider, proxyRes.data);
+                    if (models.length) return saveProviderModels(provider, models);
+                }
+            } catch (_) {}
+            return saveProviderModels(provider, BUILTIN_MODELS.noora);
+        } else if (provider === 'ollama_local') {
             const baseUrl = getOllamaBaseUrl();
             throw new Error(`Could not connect to local Ollama at ${baseUrl}. Ensure Ollama is running ('ollama serve') and accessible.`);
         } else if (provider === 'ollama_cloud' || provider === 'ollama') {
@@ -1030,6 +1186,10 @@ async function discoverProviderModels(provider, apiKey) {
         throw err;
     }
     if (!response.ok) {
+        if (provider === 'noora') {
+            console.warn(`Noora ${url} returned ${response.status}, using default model`);
+            return saveProviderModels(provider, BUILTIN_MODELS.noora);
+        }
         if (response.status === 403 && provider === 'ollama_local') {
             throw new Error('Ollama Local returned 403 Forbidden. Restart Ollama from your Start Menu/system tray so it loads OLLAMA_ORIGINS=*, or reload the extension.');
         }
@@ -1039,6 +1199,7 @@ async function discoverProviderModels(provider, apiKey) {
     }
     const models = normalizeProviderModels(provider, await response.json());
     if (!models.length) {
+        if (provider === 'noora') return saveProviderModels(provider, BUILTIN_MODELS.noora);
         if (provider === 'ollama_local') throw new Error('Ollama is running, but no local models were found. Run: ollama pull llama3.2');
         throw new Error('No generation models were returned for this key.');
     }
@@ -1058,7 +1219,7 @@ function renderProviderModels(provider, selectedModel) {
     select.replaceChildren();
 
     const group = document.createElement('optgroup');
-    const labelName = provider === 'openrouter' ? 'OpenRouter' : provider === 'groq' ? 'Groq' : provider === 'mistral' ? 'Mistral AI' : provider === 'cloudflare_ai_gateway' ? 'Cloudflare AI Gateway' : provider === 'ollama_local' ? 'Ollama Local' : (provider === 'ollama_cloud' || provider === 'ollama') ? 'Ollama Cloud' : 'Google Gemini';
+    const labelName = provider === 'openrouter' ? 'OpenRouter' : provider === 'groq' ? 'Groq' : provider === 'mistral' ? 'Mistral AI' : provider === 'cloudflare_ai_gateway' ? 'Cloudflare AI Gateway' : provider === 'ollama_local' ? 'Ollama Local' : (provider === 'ollama_cloud' || provider === 'ollama') ? 'Ollama Cloud' : provider === 'noora' ? 'Noora' : 'Google Gemini';
     group.label = `${labelName} · Available models`;
 
     const modelsList = (cached?.models && cached.models.length > 0) ? cached.models : (BUILTIN_MODELS[provider] || BUILTIN_MODELS.ollama_cloud || []);
@@ -1119,6 +1280,7 @@ function updateProviderUI() {
     const cloudflareGroup = document.getElementById('cloudflare-ai-gateway-settings-group');
     const ollamaLocalGroup = document.getElementById('ollama-local-settings-group');
     const ollamaCloudGroup = document.getElementById('ollama-cloud-settings-group');
+    const nooraGroup = document.getElementById('noora-settings-group');
     const hint = document.getElementById('provider-hint');
 
     if (geminiGroup) geminiGroup.style.display = provider === 'gemini' ? 'block' : 'none';
@@ -1128,6 +1290,7 @@ function updateProviderUI() {
     if (cloudflareGroup) cloudflareGroup.style.display = provider === 'cloudflare_ai_gateway' ? 'block' : 'none';
     if (ollamaLocalGroup) ollamaLocalGroup.style.display = provider === 'ollama_local' ? 'block' : 'none';
     if (ollamaCloudGroup) ollamaCloudGroup.style.display = (provider === 'ollama_cloud' || provider === 'ollama') ? 'block' : 'none';
+    if (nooraGroup) nooraGroup.style.display = provider === 'noora' ? 'block' : 'none';
 
     if (hint) {
         if (provider === 'gemini') {
@@ -1144,6 +1307,9 @@ function updateProviderUI() {
             hint.innerHTML = '💻 <strong>Local Ollama:</strong> 100% private & offline. Connects to your local machine (default: <code>http://localhost:11434</code>). No API key needed for local models.';
         } else if (provider === 'ollama_cloud' || provider === 'ollama') {
             hint.innerHTML = '☁️ <strong>Ollama Cloud:</strong> Runs large models on high-performance datacenter hardware via <code>https://ollama.com/api</code>. Requires API key from <a href="https://ollama.com" target="_blank" style="color:var(--accent);text-decoration:underline;">ollama.com</a>.';
+        } else if (provider === 'noora') {
+            const endpoints = getNooraEndpoints();
+            hint.innerHTML = `🤖 <strong>Noora:</strong> OpenAI-compatible local AI running on LAN (<code>${escapeHtml(endpoints.v1Base)}</code>). Model: <code>local-ai</code> with full Capsule RAG access.`;
         }
     }
 }
@@ -1236,6 +1402,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const ollamaLocalKeyInput = document.getElementById('settings-ollama-local-key-input');
     const ollamaCloudKeyInput = document.getElementById('settings-ollama-cloud-key-input');
     const ollamaUrlInput = document.getElementById('settings-ollama-url-input');
+    const nooraKeyInput = document.getElementById('settings-noora-key-input');
+    const nooraUrlInput = document.getElementById('settings-noora-url-input');
     const modelInput = document.getElementById('settings-model-input');
     const capsuleAddButton = document.getElementById('capsule-add-btn');
     const capsuleFileInput = document.getElementById('capsule-file-input');
@@ -1265,6 +1433,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (ollamaLocalKeyInput) ollamaLocalKeyInput.value = localStorage.getItem('kenowa_ollama_local_key') || '';
         if (ollamaCloudKeyInput) ollamaCloudKeyInput.value = localStorage.getItem('kenowa_ollama_key') || '';
         if (ollamaUrlInput) ollamaUrlInput.value = localStorage.getItem('kenowa_ollama_url') || 'http://localhost:11434';
+        let savedNooraUrl = localStorage.getItem('kenowa_noora_url');
+        if (!savedNooraUrl || savedNooraUrl.includes('192.168.1.100')) {
+            savedNooraUrl = 'http://10.30.197.9:8080/v1';
+            localStorage.setItem('kenowa_noora_url', savedNooraUrl);
+        }
+        let savedNooraKey = localStorage.getItem('kenowa_noora_key');
+        if (!savedNooraKey || savedNooraKey === 'sk-local-YOUR_GENERATED_KEY') {
+            savedNooraKey = 'YOUR_API_KEY_HERE';
+        }
+        if (nooraKeyInput) nooraKeyInput.value = savedNooraKey;
+        if (nooraUrlInput) nooraUrlInput.value = savedNooraUrl;
         updateProviderUI();
         const selectedProvider = providerInput?.value || 'gemini';
         const savedModel = getSavedModelForProvider(selectedProvider);
@@ -1280,13 +1459,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         const provider = providerInput?.value || 'gemini';
         const keyInputForProvider = document.getElementById(providerKeyInputId(provider));
         const key = keyInputForProvider?.value.trim() || '';
-        if (provider !== 'ollama_local' && !key) {
+        if (provider !== 'ollama_local' && provider !== 'noora' && !key) {
             setModelsStatus(`Add ${provider === 'ollama_cloud' ? 'Ollama Cloud' : provider} API key to load its available models.`, 'error');
             return;
         }
         if (key) localStorage.setItem(providerKeyName(provider), key);
         if (provider === 'ollama_local' && ollamaUrlInput) {
             localStorage.setItem('kenowa_ollama_url', (ollamaUrlInput.value.trim() || 'http://localhost:11434').replace(/\/+$/, ''));
+        }
+        if (provider === 'noora' && nooraUrlInput) {
+            localStorage.setItem('kenowa_noora_url', (nooraUrlInput.value.trim() || 'http://10.30.197.9:8080/v1').replace(/\/+$/, ''));
         }
         refreshProviderModels(provider, key, modelInput?.value || '');
     };
@@ -1301,8 +1483,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         persistSelectedModel(provider, savedModel);
         syncProviderConfigToBackground().catch(error => showToast(`Could not sync selected provider: ${error.message}`, 'error'));
         const key = document.getElementById(providerKeyInputId(provider))?.value.trim() || '';
-        if (provider === 'ollama_local') {
-            refreshProviderModels('ollama_local', key, savedModel);
+        if (provider === 'ollama_local' || provider === 'noora') {
+            refreshProviderModels(provider, key, savedModel);
         } else if (key) {
             refreshProviderModels(provider, key, savedModel);
         } else {
@@ -1316,7 +1498,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try { await syncProviderConfigToBackground(); }
         catch (error) { setModelsStatus(`Model selected but local sync failed: ${error.message}`, 'error'); }
     });
-    [keyInput, openRouterKeyInput, groqKeyInput, mistralKeyInput, cloudflareKeyInput, ollamaLocalKeyInput, ollamaCloudKeyInput].forEach(input => {
+    [keyInput, openRouterKeyInput, groqKeyInput, mistralKeyInput, cloudflareKeyInput, ollamaLocalKeyInput, ollamaCloudKeyInput, nooraKeyInput].forEach(input => {
         if (!input) return;
         let timer;
         input.addEventListener('input', () => {
@@ -1328,7 +1510,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     : input.id === 'settings-mistral-key-input' ? 'mistral'
                     : input.id === 'settings-cloudflare-key-input' ? 'cloudflare_ai_gateway'
                     : input.id === 'settings-ollama-cloud-key-input' ? 'ollama_cloud'
-                    : input.id === 'settings-ollama-local-key-input' ? 'ollama_local' : 'gemini';
+                    : input.id === 'settings-ollama-local-key-input' ? 'ollama_local'
+                    : input.id === 'settings-noora-key-input' ? 'noora' : 'gemini';
                 if (providerInput?.value === provider) refreshProviderModels(provider, input.value.trim(), modelInput?.value || '');
             }, 700);
         });
@@ -1354,6 +1537,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (ollamaLocalKeyInput) localStorage.setItem('kenowa_ollama_local_key', ollamaLocalKeyInput.value);
         if (ollamaCloudKeyInput) localStorage.setItem('kenowa_ollama_key', ollamaCloudKeyInput.value);
         if (ollamaUrlInput) localStorage.setItem('kenowa_ollama_url', (ollamaUrlInput.value.trim() || 'http://localhost:11434').replace(/\/+$/, ''));
+        if (nooraKeyInput) localStorage.setItem('kenowa_noora_key', nooraKeyInput.value.trim());
+        if (nooraUrlInput) localStorage.setItem('kenowa_noora_url', (nooraUrlInput.value.trim() || 'http://10.30.197.9:8080/v1').replace(/\/+$/, ''));
         const selectedProvider = providerInput?.value || 'gemini';
         if (modelInput) persistSelectedModel(selectedProvider, modelInput.value);
         if (personaSelector) localStorage.setItem('kenowa_persona', personaSelector.value);
@@ -1460,6 +1645,11 @@ function updateShareButtonVisibility() {
 }
 
 function startNewChat() {
+    if (activeStreamGlobal) {
+        activeStreamGlobal.destroy();
+        activeStreamGlobal = null;
+    }
+    hideTypingIndicator();
     currentChatId = Date.now().toString();
     if (messagesList) messagesList.innerHTML = '';
     if (welcomeScreen) welcomeScreen.classList.remove('hidden');
@@ -1579,6 +1769,7 @@ function publishSelectionResponse(content, chatId, partial = false) {
 function appendMessage(role,content,images=[],animate=false,isReload=false,targetChatId=null,sources=null) {
     const chatId = targetChatId || currentChatId;
     if(welcomeScreen) welcomeScreen.classList.add('hidden');
+    if(role==='ai'&&!isReload) hideTypingIndicator();
     const msgDiv=document.createElement('div'); msgDiv.className=`message ${role}`;
     if(images&&images.length>0){
         const imgsDiv=document.createElement('div'); imgsDiv.style.cssText='display:flex;gap:5px;margin-bottom:5px;flex-wrap:wrap';
@@ -1632,41 +1823,71 @@ function appendMessage(role,content,images=[],animate=false,isReload=false,targe
 // ── Streaming message (token-by-token rendering) ──────────
 function appendMessageStream(chatId, placeholderMessage = 'Kenowa is thinking...') {
     if(welcomeScreen) welcomeScreen.classList.add('hidden');
-    const msgDiv=document.createElement('div'); msgDiv.className='message ai';
-    const textDiv=document.createElement('div'); textDiv.className='streaming-text';
-    // Active generating animation placeholder until first token arrives
+    // Ensure the bottom typing indicator is hidden immediately so only one animation appears
+    hideTypingIndicator();
+
+    if (activeStreamGlobal) {
+        activeStreamGlobal.destroy();
+        activeStreamGlobal = null;
+    }
+
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'message ai';
+    const textDiv = document.createElement('div');
+    textDiv.className = 'streaming-text';
+
+    // Pure CSS animated placeholder — zero fragile setInterval timers
     textDiv.innerHTML = `<div class="streaming-thinking-placeholder"><span class="thinking-text">${sanitize(placeholderMessage)}</span><span class="thinking-ellipsis" aria-hidden="true"><i></i><i></i><i></i></span></div>`;
+
     msgDiv.appendChild(textDiv);
     if(messagesList) messagesList.appendChild(msgDiv);
-    if(chatContainer) chatContainer.scrollTop=chatContainer.scrollHeight;
-    let full='';
+    if(chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
+    let full = '';
     let firstTokenReceived = false;
-    return {
+
+    const streamObj = {
         update(chunk){
             if (!firstTokenReceived) {
                 firstTokenReceived = true;
                 hideTypingIndicator();
             }
-            full+=chunk;
+            full += chunk;
             const html = typeof parseMarkdown === 'function' ? parseMarkdown(full) : escapeHtml(full).replace(/\n/g, '<br>');
             textDiv.innerHTML = linkify(html) + '<span class="streaming-cursor">|</span>';
             publishSelectionResponse(full, chatId, true);
-            if(chatContainer) chatContainer.scrollTop=chatContainer.scrollHeight;
+            if(chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
         },
         finalize(sources = null, queryText = ''){
             hideTypingIndicator();
-            if (!full.trim()) full = 'The model returned an empty response. Check the selected provider and model, then try again.';
-            const html=typeof parseMarkdown==='function'?parseMarkdown(full):escapeHtml(full);
-            textDiv.innerHTML=linkify(html);
-            addActions(msgDiv,full);
+            if (activeStreamGlobal === streamObj) activeStreamGlobal = null;
+            if (!full.trim()) {
+                if (msgDiv && msgDiv.parentNode) {
+                    msgDiv.parentNode.removeChild(msgDiv);
+                }
+                return '';
+            }
+            const html = typeof parseMarkdown === 'function' ? parseMarkdown(full) : escapeHtml(full);
+            textDiv.innerHTML = linkify(html);
+            addActions(msgDiv, full);
             const verifiedSources = filterActuallyUsedSources(sources, full, queryText);
             if(verifiedSources && verifiedSources.length) renderSourcesSection(msgDiv, verifiedSources);
-            if(chatId) saveToHistory('ai',full,[],chatId,verifiedSources);
-            publishSelectionResponse(full,chatId);
+            if(chatId) saveToHistory('ai', full, [], chatId, verifiedSources);
+            publishSelectionResponse(full, chatId);
             return full;
         },
-        getContent(){return full;}
+        destroy(){
+            hideTypingIndicator();
+            if (activeStreamGlobal === streamObj) activeStreamGlobal = null;
+            if (msgDiv && msgDiv.parentNode) {
+                msgDiv.parentNode.removeChild(msgDiv);
+            }
+        },
+        getContent(){ return full; },
+        hasContent(){ return Boolean(full.trim()); }
     };
+
+    activeStreamGlobal = streamObj;
+    return streamObj;
 }
 
 function addActions(parentDiv,content) {
@@ -1772,9 +1993,10 @@ async function handleSend(textOverride=null, executionOptions={}) {
 
     if (!currentChatId) currentChatId = Date.now().toString();
     const lockedChatId = currentChatId;
-    const { context: capsuleContext, sources: retrievedSources } = getCapsuleReferenceData(text);
-    const sysPrompt = getSystemPrompt() + capsuleContext;
     const aiConfig = executionOptions.config || getSelectedAIConfig();
+    const capsuleMaxChars = aiConfig.provider === 'noora' ? 3500 : CAPSULE_MAX_TOTAL_CHARS;
+    const { context: capsuleContext, sources: retrievedSources } = getCapsuleReferenceData(text, capsuleMaxChars);
+    const sysPrompt = getSystemPrompt() + capsuleContext;
 
     try {
         const provider = aiConfig.provider;
@@ -1824,19 +2046,206 @@ async function handleSend(textOverride=null, executionOptions={}) {
                 const aiMessage = sm.finalize(retrievedSources, text);
                 if (!isExamMode && !isSQMode) setTimeout(() => getAISuggestions(text, aiMessage), 500);
             }
-        } else if(provider==='groq' || provider==='mistral') {
-            if(!apiKey){ appendMessage('ai',`⚙️ No ${PROVIDER_LABELS[provider]} API Key found. Open Settings to add one.`); return; }
+        } else if(provider==='groq' || provider==='mistral' || provider==='noora') {
+            const effectiveKey = apiKey || (provider === 'noora' ? (getProviderApiKey('noora') || 'YOUR_API_KEY_HERE') : '');
+            if(!effectiveKey && provider !== 'noora'){ appendMessage('ai',`⚙️ No ${PROVIDER_LABELS[provider]} API Key found. Open Settings to add one.`); return; }
             const contentArr=[]; if(text) contentArr.push({type:'text',text});
             for(const img of imagesToSend) contentArr.push({type:'image_url',image_url:{url:img}});
             if(!contentArr.length) return;
-            const compat = getOpenAICompatibleConfig(provider, model, apiKey);
+            const compat = getOpenAICompatibleConfig(provider, model, effectiveKey);
             url = compat.url; headers = { 'Content-Type':'application/json', ...compat.headers };
-            body = JSON.stringify({model, messages:[{role:'system',content:sysPrompt},{role:'user',content:contentArr}], ...getOpenAIRequestOptions(provider, model), stream:true});
+            const userContent = (provider === 'noora' && imagesToSend.length === 0) ? text : contentArr;
+            const messagesPayload = (provider === 'noora' && !sysPrompt.trim())
+                ? [{ role: 'user', content: userContent }]
+                : [{ role: 'system', content: sysPrompt }, { role: 'user', content: userContent }];
+            body = JSON.stringify({
+                model,
+                messages: messagesPayload,
+                ...getOpenAIRequestOptions(provider, model),
+                stream: true
+            });
             const sm = appendMessageStream(lockedChatId, indicatorText);
-            const response = await fetch(url,{method:'POST',headers,body,signal:requestController.signal});
-            if(!response.ok){ let e=`API error ${response.status}`; try{const ed=await response.json();e=ed.error?.message||ed.error||JSON.stringify(ed);}catch(_){} throw new Error(e); }
-            const reader=response.body.getReader(); const dec=new TextDecoder(); let buf='';
-            while(true){ const {done,value}=await reader.read(); if(done) break; buf+=dec.decode(value,{stream:true}); const lines=buf.split('\n'); buf=lines.pop()||''; for(const line of lines){ if(!line.startsWith('data: ')) continue; const x=line.slice(6).trim(); if(!x||x==='[DONE]') continue; try{const d=JSON.parse(x); const c=getOpenAIDeltaText(d); if(c) sm.update(c);}catch(_){} } }
+            let response;
+            try {
+                response = await fetch(url,{method:'POST',headers,body,signal:requestController.signal});
+            } catch (netErr) {
+                if (requestController.signal.aborted) throw netErr;
+                if (provider === 'noora') {
+                    console.warn(`Direct fetch to ${url} failed (${netErr.message}), falling back to background worker proxy...`);
+                    try {
+                        const proxyRes = await chrome.runtime.sendMessage({
+                            type: 'kenowa-proxy-fetch',
+                            url,
+                            method: 'POST',
+                            headers,
+                            body: JSON.stringify({
+                                model,
+                                messages: messagesPayload,
+                                stream: false
+                            })
+                        });
+                        if (proxyRes && proxyRes.ok && proxyRes.data) {
+                            const proxyContent = getOpenAIMessageText(proxyRes.data) || getOpenAIDeltaText(proxyRes.data);
+                            if (proxyContent) {
+                                sm.update(proxyContent);
+                                const aiMessage = sm.finalize(retrievedSources, text);
+                                if (!isExamMode && !isSQMode) setTimeout(() => getAISuggestions(text, aiMessage), 500);
+                                return;
+                            }
+                        }
+                        if (proxyRes && !proxyRes.ok) {
+                            throw new Error(`Noora server error (${proxyRes.status || 'network'}): ${proxyRes.error || proxyRes.rawText || 'Server unreachable'}`);
+                        }
+                    } catch (proxyErr) {
+                        throw new Error(`Could not connect to Noora local AI at ${url}. Ensure your server is running on LAN (e.g. http://10.30.197.9:8080/v1). Detail: ${proxyErr.message || netErr.message}`);
+                    }
+                    throw new Error(`Could not connect to Noora local AI at ${url}. Ensure your server is running on LAN (e.g. http://10.30.197.9:8080/v1). Detail: ${netErr.message}`);
+                }
+                throw netErr;
+            }
+            if(!response.ok){
+                let e=`API error ${response.status}`;
+                try{const ed=await response.json();e=ed.error?.message||ed.error||JSON.stringify(ed);}catch(_){}
+                throw new Error(e);
+            }
+
+            const contentType = response.headers.get('content-type') || '';
+            let receivedTokens = 0;
+
+            if (contentType.includes('application/json')) {
+                // Server responded with standard JSON rather than an SSE stream
+                const data = await response.json();
+                if (data.error) {
+                    const errDetail = typeof data.error === 'string' ? data.error : (data.error.message || JSON.stringify(data.error));
+                    throw new Error(`Noora error: ${errDetail}`);
+                }
+                const answerText = getOpenAIMessageText(data) || getOpenAIDeltaText(data);
+                if (answerText) {
+                    sm.update(answerText);
+                    receivedTokens += answerText.length;
+                }
+            } else {
+                // Read streaming response (SSE / chunked)
+                const reader = response.body.getReader();
+                const dec = new TextDecoder();
+                let buf = '';
+                while(true){
+                    const {done,value}=await reader.read();
+                    if(done) break;
+                    buf+=dec.decode(value,{stream:true});
+                    const lines=buf.split('\n');
+                    buf=lines.pop()||'';
+                    for(const line of lines){
+                        const trimmed = line.trim();
+                        if(!trimmed) continue;
+                        if(trimmed.startsWith('data:')) {
+                            const x = trimmed.slice(5).trim();
+                            if(!x || x === '[DONE]') continue;
+                            try{
+                                const d = JSON.parse(x);
+                                if (d.error) {
+                                    const errDetail = typeof d.error === 'string' ? d.error : (d.error.message || JSON.stringify(d.error));
+                                    throw new Error(`Noora error: ${errDetail}`);
+                                }
+                                const c = getOpenAIDeltaText(d) || getOpenAIMessageText(d);
+                                if(c) { sm.update(c); receivedTokens++; }
+                            }catch(err){
+                                if (err.message?.startsWith('Noora error:')) throw err;
+                            }
+                        } else if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+                            try {
+                                const d = JSON.parse(trimmed);
+                                if (d.error) {
+                                    const errDetail = typeof d.error === 'string' ? d.error : (d.error.message || JSON.stringify(d.error));
+                                    throw new Error(`Noora error: ${errDetail}`);
+                                }
+                                const c = getOpenAIMessageText(d) || getOpenAIDeltaText(d);
+                                if (c) { sm.update(c); receivedTokens++; }
+                            } catch (err) {
+                                if (err.message?.startsWith('Noora error:')) throw err;
+                            }
+                        }
+                    }
+                }
+                buf+=dec.decode();
+                if (buf.trim()) {
+                    const trimmed = buf.trim();
+                    if (trimmed.startsWith('data:')) {
+                        const x = trimmed.slice(5).trim();
+                        if (x && x !== '[DONE]') {
+                            try {
+                                const d = JSON.parse(x);
+                                const c = getOpenAIDeltaText(d) || getOpenAIMessageText(d);
+                                if (c) { sm.update(c); receivedTokens++; }
+                            } catch (_) {}
+                        }
+                    } else {
+                        try {
+                            const d = JSON.parse(trimmed);
+                            const c = getOpenAIMessageText(d) || getOpenAIDeltaText(d);
+                            if (c) { sm.update(c); receivedTokens++; }
+                        } catch (_) {}
+                    }
+                }
+            }
+
+            // Fallback for Noora if SSE stream yielded 0 tokens (e.g. server closed connection or failed to stream long answer)
+            if (receivedTokens === 0 && provider === 'noora') {
+                console.warn('Noora stream yielded 0 tokens. Attempting robust non-streaming completion fallback...');
+                try {
+                    const fallbackRes = await fetch(url, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({
+                            model,
+                            messages: messagesPayload,
+                            stream: false
+                        }),
+                        signal: requestController.signal
+                    });
+                    if (fallbackRes.ok) {
+                        const fallbackData = await fallbackRes.json();
+                        if (fallbackData.error) {
+                            const errDetail = typeof fallbackData.error === 'string' ? fallbackData.error : (fallbackData.error.message || JSON.stringify(fallbackData.error));
+                            throw new Error(`Noora error: ${errDetail}`);
+                        }
+                        const ans = getOpenAIMessageText(fallbackData) || getOpenAIDeltaText(fallbackData);
+                        if (ans) {
+                            sm.update(ans);
+                            receivedTokens += ans.length;
+                        }
+                    }
+                } catch (directFallbackErr) {
+                    if (directFallbackErr.message?.startsWith('Noora error:')) throw directFallbackErr;
+                    console.warn('Direct non-streaming fallback failed, trying background proxy fallback...', directFallbackErr);
+                }
+
+                if (receivedTokens === 0) {
+                    try {
+                        const proxyRes = await chrome.runtime.sendMessage({
+                            type: 'kenowa-proxy-fetch',
+                            url,
+                            method: 'POST',
+                            headers,
+                            body: JSON.stringify({
+                                model,
+                                messages: [{ role: 'user', content: (sysPrompt.trim() ? `${sysPrompt}\n\n${typeof userContent === 'string' ? userContent : text}` : (typeof userContent === 'string' ? userContent : text)) }],
+                                stream: false
+                            })
+                        });
+                        if (proxyRes && proxyRes.ok && proxyRes.data) {
+                            const proxyAns = getOpenAIMessageText(proxyRes.data) || getOpenAIDeltaText(proxyRes.data);
+                            if (proxyAns) {
+                                sm.update(proxyAns);
+                                receivedTokens += proxyAns.length;
+                            }
+                        }
+                    } catch (proxyFallbackErr) {
+                        console.warn('Background proxy fallback failed:', proxyFallbackErr);
+                    }
+                }
+            }
+
             const aiMessage = sm.finalize(retrievedSources, text);
             if (!isExamMode && !isSQMode) setTimeout(() => getAISuggestions(text, aiMessage), 500);
         } else if(provider==='cloudflare_ai_gateway') {
@@ -2010,12 +2419,20 @@ async function handleSend(textOverride=null, executionOptions={}) {
             return;
         }
     } catch(err){
+        if (activeStreamGlobal) {
+            activeStreamGlobal.destroy();
+            activeStreamGlobal = null;
+        }
         const attemptedProviders = executionOptions.attemptedProviders || new Set([aiConfig.provider]);
         attemptedProviders.add(aiConfig.provider);
         const fallbackConfig = !executionOptions.fallbackTried && isQuotaOrAuthError(err) ? getFallbackConfig(aiConfig, attemptedProviders) : null;
         if (fallbackConfig) {
             hideTypingIndicator();
             toggleSendButton(false);
+            if (activeStreamGlobal) {
+                activeStreamGlobal.destroy();
+                activeStreamGlobal = null;
+            }
             persistActiveProviderConfig(fallbackConfig);
             showToast(`Primary provider unavailable. Switching to ${PROVIDER_LABELS[fallbackConfig.provider]} · ${fallbackConfig.model}`, 'success');
             attemptedProviders.add(fallbackConfig.provider);
@@ -2025,12 +2442,35 @@ async function handleSend(textOverride=null, executionOptions={}) {
         if(requestTimedOut) appendMessage('ai','⚠️ The model did not respond within 90 seconds. Check the provider, API key, and selected model in Settings, then try again.',[],false,false,lockedChatId);
         else if(err.name==='AbortError'&&activeSelectionRequest) appendMessage('ai','⚠️ The selected-text request was cancelled before the model replied.',[],false,false,lockedChatId);
         else if(err.name!=='AbortError') appendMessage('ai',`⚠️ Error: ${sanitize(err.message)}`,[],false,false,lockedChatId);
-    } finally { clearTimeout(requestTimeoutId); toggleSendButton(false); hideTypingIndicator(); if(abortController===requestController) abortController=null; }
+    } finally {
+        if (activeStreamGlobal && !activeStreamGlobal.hasContent()) {
+            activeStreamGlobal.destroy();
+            activeStreamGlobal = null;
+        }
+        clearTimeout(requestTimeoutId);
+        toggleSendButton(false);
+        hideTypingIndicator();
+        if(abortController===requestController) abortController=null;
+    }
 }
 
 function checkImageGenLimit() { const l=localStorage.getItem('kenowa_last_image_gen'); if(!l) return true; const d=new Date(parseInt(l)),now=new Date(); return d.getDate()!==now.getDate()||d.getMonth()!==now.getMonth()||d.getFullYear()!==now.getFullYear(); }
 function logImageGenSuccess() { localStorage.setItem('kenowa_last_image_gen',Date.now().toString()); }
-function stopGeneration() { if(abortController){ abortController.abort(); hideTypingIndicator(); toggleSendButton(false); } }
+function stopGeneration() {
+    if (activeStreamGlobal) {
+        if (!activeStreamGlobal.hasContent()) {
+            activeStreamGlobal.destroy();
+        } else {
+            activeStreamGlobal.finalize();
+        }
+        activeStreamGlobal = null;
+    }
+    if (abortController) {
+        abortController.abort();
+    }
+    hideTypingIndicator();
+    toggleSendButton(false);
+}
 
 // ── SQ (Solve Question) ────────────────────────────────────────
 async function handleSQ() {
@@ -2045,8 +2485,9 @@ async function handleSQ() {
         const extraction=await chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>document.body.innerText});
         if(extraction?.[0]?.result){
             const pageText=extraction[0].result.substring(0,14000);
+            const { context: capsuleCtx, sources: capsuleSources } = getCapsuleReferenceData(pageText);
             const prompt=`You are an expert exam-answering assistant. Below is raw text scraped from an online quiz/exam page.
-
+${capsuleCtx ? '\n' + capsuleCtx : ''}
 TASK:
 1. Find every visible multiple-choice or multi-select question.
 2. Pick the single best correct answer for each question.
@@ -2065,7 +2506,24 @@ ${pageText}`;
             if (!aiRaw?.trim() || aiRaw.trim() === '[]') {
                 appendMessage('ai', 'ℹ️ No questions/answers detected on this page.');
             } else {
-                appendMessage('ai', `✅ Answer: ${aiRaw.length > 100 ? aiRaw.substring(0, 100) + '…' : aiRaw}`);
+                let parsedAnswers = [];
+                try {
+                    const parsed = JSON.parse(aiRaw);
+                    if (Array.isArray(parsed)) parsedAnswers = parsed;
+                    else if (typeof parsed === 'string') parsedAnswers = [parsed];
+                    else if (parsed && typeof parsed === 'object') parsedAnswers = Object.values(parsed);
+                } catch (_) {
+                    parsedAnswers = [aiRaw.trim()];
+                }
+
+                let answerDisplay = '### 🎯 Correct Answer\n\n';
+                if (parsedAnswers.length > 0) {
+                    answerDisplay += parsedAnswers.map(ans => `- **${ans}**`).join('\n');
+                } else {
+                    answerDisplay += `**${aiRaw}**`;
+                }
+
+                appendMessage('ai', answerDisplay, [], true, false, currentChatId, capsuleSources);
                 
                 // Save to QA training cache
                 const questionForHash = pageText.substring(0, 2000);
@@ -2194,7 +2652,10 @@ function showTypingIndicator(message="Thinking...", animate=false) {
 }
 function hideTypingIndicator() {
     if (typingMessageTimer) { clearInterval(typingMessageTimer); typingMessageTimer = null; }
-    typingIndicator?.classList.add('hidden');
+    if (typingIndicator) {
+        typingIndicator.classList.add('hidden');
+        typingIndicator.innerHTML = '';
+    }
 }
 
 // ── History ────────────────────────────────────────────────────
@@ -2214,6 +2675,13 @@ function renderHistoryList() {
 }
 
 function loadChat(id,closeSidebar=true) {
+    if (activeStreamGlobal) {
+        activeStreamGlobal.destroy();
+        activeStreamGlobal = null;
+    }
+    hideTypingIndicator();
+    isGenerating = false;
+    toggleSendButton(false);
     currentChatId=id; const chat=chats[id]; saveChats();
     if(messagesList) messagesList.innerHTML='';
     if(welcomeScreen) welcomeScreen.classList.add('hidden');
@@ -2257,25 +2725,28 @@ async function syncSettingsToServer() {
 
 async function apiGenerateText(prompt) {
     const isOk = await checkAccountStatus(); if(!isOk) return null;
-    const capsuleContext = getCapsuleReferenceContext(prompt, 18000);
-    if (capsuleContext) prompt = `${prompt}\n\n${capsuleContext}`;
     const { provider, model, apiKey } = getSelectedAIConfig();
-    let url, body, headers = { 'Content-Type': 'application/json' };
     const isOllamaLocal = provider === 'ollama_local';
     const isOllamaCloud = provider === 'ollama_cloud' || provider === 'ollama';
+    const isNoora = provider === 'noora';
+    const capsuleMax = isNoora ? 3500 : 18000;
+    const capsuleContext = getCapsuleReferenceContext(prompt, capsuleMax);
+    if (capsuleContext) prompt = `${prompt}\n\n${capsuleContext}`;
+    let url, body, headers = { 'Content-Type': 'application/json' };
 
-    if (!apiKey && !isOllamaLocal) {
+    if (!apiKey && !isOllamaLocal && !isNoora) {
         throw new Error(`No ${isOllamaCloud ? 'Ollama Cloud' : provider} API key is saved. Add the key in Settings to use Solve Question and Exam Mode.`);
     }
 
     if (provider === 'gemini') {
         url = `${BASE_URL}${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
         body = JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] });
-    } else if (provider === 'groq' || provider === 'mistral') {
-        const compat = getOpenAICompatibleConfig(provider, model, apiKey);
+    } else if (provider === 'groq' || provider === 'mistral' || provider === 'noora') {
+        const effectiveKey = apiKey || (provider === 'noora' ? (localStorage.getItem('kenowa_noora_key') || 'sk-local-YOUR_GENERATED_KEY') : '');
+        const compat = getOpenAICompatibleConfig(provider, model, effectiveKey);
         url = compat.url;
         headers = { 'Content-Type': 'application/json', ...compat.headers };
-        body = JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], ...getOpenAIRequestOptions(provider, model) });
+        body = JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], ...getOpenAIRequestOptions(provider, model), stream: false });
     } else if (provider === 'cloudflare_ai_gateway') {
         const cf = getCloudflareWorkersAIConfig(model, apiKey, [{ role: 'user', content: prompt }]);
         url = cf.url;
@@ -2303,26 +2774,50 @@ async function apiGenerateText(prompt) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 90000);
     try {
-        const res = await fetch(url, { method: 'POST', headers, body, signal: controller.signal });
-        if (!res.ok) {
-            if (res.status === 403 && isOllamaLocal) {
-                throw new Error('Ollama Local error 403: Cross-Origin access blocked. Restart Ollama from your Start Menu/system tray so it loads OLLAMA_ORIGINS=*, or reload the extension.');
+        let data = null;
+        try {
+            const res = await fetch(url, { method: 'POST', headers, body, signal: controller.signal });
+            if (!res.ok) {
+                if (res.status === 403 && isOllamaLocal) {
+                    throw new Error('Ollama Local error 403: Cross-Origin access blocked. Restart Ollama from your Start Menu/system tray so it loads OLLAMA_ORIGINS=*, or reload the extension.');
+                }
+                let detail = `HTTP ${res.status}`;
+                try { const errorData = await res.json(); detail = errorData?.error?.message || errorData?.error || errorData?.message || detail; } catch (_) {}
+                throw new Error(`${provider} / ${model}: ${detail}`);
             }
-            let detail = `HTTP ${res.status}`;
-            try { const errorData = await res.json(); detail = errorData?.error?.message || errorData?.error || errorData?.message || detail; } catch (_) {}
-            throw new Error(`${provider} / ${model}: ${detail}`);
+            data = await res.json();
+        } catch (fetchErr) {
+            if (controller.signal.aborted) throw fetchErr;
+            if (provider === 'noora') {
+                const proxyRes = await chrome.runtime.sendMessage({
+                    type: 'kenowa-proxy-fetch',
+                    url,
+                    method: 'POST',
+                    headers,
+                    body
+                });
+                if (proxyRes && proxyRes.ok && proxyRes.data) {
+                    data = proxyRes.data;
+                } else if (proxyRes && !proxyRes.ok) {
+                    throw new Error(`Noora server error (${proxyRes.status || 'network'}): ${proxyRes.error || proxyRes.rawText || 'Server unreachable'}`);
+                } else {
+                    throw fetchErr;
+                }
+            } else {
+                throw fetchErr;
+            }
         }
-        const data = await res.json();
         if (provider === 'gemini') return data.candidates?.[0]?.content?.parts?.map(p => p.text).join('').trim() || null;
-        if (provider === 'openrouter' || provider === 'groq' || provider === 'mistral') {
-            const content = data.choices?.[0]?.message?.content;
+        if (provider === 'openrouter' || provider === 'groq' || provider === 'mistral' || provider === 'noora') {
+            const content = getOpenAIMessageText(data) || getOpenAIDeltaText(data) || (data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text);
             return (Array.isArray(content) ? content.map(part => part.text || '').join('') : String(content || '')).trim() || null;
         }
         if (provider === 'cloudflare_ai_gateway') return getCloudflareRunText(data).trim() || null;
-        if (isOllamaCloud || isOllamaLocal) return data.message?.content?.trim() || null;
+        if (isOllamaCloud || isOllamaLocal) return data?.message?.content?.trim() || null;
         return null;
     } catch (error) {
         if (controller.signal.aborted) throw new Error(`The selected ${provider} model (${model}) did not respond within 90 seconds.`);
+        if (provider === 'noora') throw new Error(`Could not connect to Noora local AI at ${url}. Ensure server is running on LAN (e.g. http://10.30.197.9:8080/v1). Detail: ${error.message}`);
         if (isOllamaCloud) throw new Error(`Could not connect to Ollama Cloud at https://ollama.com/api/chat. Detail: ${error.message}`);
         if (isOllamaLocal) throw new Error(`Could not connect to local Ollama at ${getOllamaBaseUrl()}. Ensure Ollama is running ('ollama serve'). Detail: ${error.message}`);
         throw error;

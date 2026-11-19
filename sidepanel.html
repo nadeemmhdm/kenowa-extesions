@@ -57,7 +57,7 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
           </button>
           <div class="brand-area">
-            <span class="brand-name">Kenowa 2.19.4</span>
+            <span class="brand-name">Kenowa 2.19.5</span>
             <img src="logo.png" alt="Logo" class="brand-logo">
             <span id="pro-badge" class="pro-badge hidden">PRO</span>
           </div>
@@ -159,7 +159,7 @@
         <div class="settings-update-row">
           <div>
             <div style="font-weight:600;font-size:0.84rem;color:var(--text-main);">Kenowa Updates</div>
-            <div id="settings-update-status" style="font-size:0.75rem;color:var(--text-sub);margin-top:2px;">Version v2.19.4 · Checking...</div>
+            <div id="settings-update-status" style="font-size:0.75rem;color:var(--text-sub);margin-top:2px;">Version v2.19.5 · Checking...</div>
           </div>
           <button id="check-update-btn" class="settings-check-btn" type="button">Check Now</button>
         </div>
@@ -173,6 +173,7 @@
           <option value="cloudflare_ai_gateway">Cloudflare AI Gateway</option>
           <option value="ollama_local">Ollama (Local / Self-Hosted)</option>
           <option value="ollama_cloud">Ollama Cloud (ollama.com)</option>
+          <option value="noora">Noora (Local / LAN AI)</option>
         </select>
         <!-- Provider hint line -->
         <p id="provider-hint" style="font-size:0.75rem;color:var(--accent);margin-bottom:14px;padding:8px 10px;background:var(--accent-subtle);border-radius:6px;line-height:1.45;"></p>
@@ -237,6 +238,21 @@
           </div>
         </div>
 
+        <div id="noora-settings-group" class="provider-settings-group" style="display:none;">
+          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Noora Base URL (LAN / Local)</label>
+          <div style="position:relative;margin-bottom:12px;">
+            <input type="text" id="settings-noora-url-input" placeholder="http://10.30.197.9:8080/v1" value="http://10.30.197.9:8080/v1" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);font-family:monospace;font-size:0.84rem;">
+            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Default: <code>http://10.30.197.9:8080/v1</code>. OpenAI-compatible Noora LAN server.</div>
+          </div>
+
+          <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Noora API Key</label>
+          <div style="position:relative;margin-bottom:14px;">
+            <input type="password" id="settings-noora-key-input" placeholder="Paste Noora API Key" value="YOUR_API_KEY_HERE" style="width:100%;border:1px solid var(--border);padding:10px 36px 10px 10px;border-radius:6px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
+            <button data-key-toggle="settings-noora-key-input" style="position:absolute;right:8px;top:10px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;">👁</button>
+            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Generate key in Noora API Keys tab. Default model: <code>local-ai</code>.</div>
+          </div>
+        </div>
+
         <p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:18px;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px;">🔒 Keys and endpoints are securely stored locally.</p>
 
         <div class="settings-preferences">
@@ -249,7 +265,7 @@
             <span class="ui-switch"><input type="checkbox" id="settings-suggestions-input" checked><span class="ui-switch-track"></span></span>
           </label>
           <label for="settings-fallback-order-input" class="preference-sub-label">Fallback order</label>
-          <input id="settings-fallback-order-input" type="text" placeholder="groq,mistral,cloudflare_ai_gateway,openrouter,gemini" class="preference-order-input">
+          <input id="settings-fallback-order-input" type="text" placeholder="groq,mistral,noora,cloudflare_ai_gateway,openrouter,gemini" class="preference-order-input">
         </div>
 
         <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Default AI Model</label>

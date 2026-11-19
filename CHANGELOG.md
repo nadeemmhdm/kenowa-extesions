@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.19.5] - 2026-11-19
+
+### Added
+- **Noora Local AI Provider Integration:**
+  - Added OpenAI-compatible LAN/local server support (`http://10.30.197.9:8080/v1`) with configurable LAN Base URL, API keys, and model selection (`local-ai`).
+  - Added declarativeNetRequest rule (Rule 3 in `rules.json`) with private network access permissions (`Access-Control-Allow-Private-Network: true`) and origin rewriting for local LAN servers.
+  - Implemented background proxy fallback (`kenowa-proxy-fetch`) and reliable non-streaming fallback (`stream: false`) for local inference servers.
+  - Added support for local reasoning/thinking models (`delta.reasoning_content`, `delta.reasoning`, `delta.thought`).
+  - Added styled display for `### 🎯 Correct Answer` in Question Solving and Exam Mode.
+
+### Fixed
+- **Empty Response on Long Queries:**
+  - Fixed empty model output caused by oversized Capsule context overflowing local LLM context windows by capping local Capsule reference length to a safe 3,500 characters.
+  - Fixed SSE stream parser dropping multi-line formatted JSON responses by supporting both `text/event-stream` and `application/json` payloads.
+  - Surfaces explicit backend errors (`Noora error: ...`) instead of masking them with generic empty response messages.
+- **Multiple / Stuck Response Generating Animations:**
+  - Eliminated duplicate and persisting thinking animations by replacing JavaScript interval timers with pure CSS animations (`thinkingDot`).
+  - Added automatic stream destruction (`activeStreamGlobal.destroy()`) on error, abort, chat switch, or fallback to ensure no orphaned animations remain in the DOM.
+
+---
+
 ## [2.18.0] - 2026-11-03
 
 ### Added
