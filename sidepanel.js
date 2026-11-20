@@ -332,7 +332,17 @@ function sanitize(str) {
 }
 function isSafeUrl(url) {
     if (!url || typeof url !== 'string') return false;
-    try { const p = new URL(url); return p.protocol==='http:'||p.protocol==='https:'; } catch(_){return false;}
+    try {
+        const p = new URL(url);
+        if (p.protocol !== 'http:' && p.protocol !== 'https:') return false;
+        const host = p.hostname.toLowerCase();
+        // Chrome & Chromium browsers strictly block scripting on extension galleries and web stores
+        if (host === 'chromewebstore.google.com' || host === 'chrome.google.com') return false;
+        if (host === 'microsoftedge.microsoft.com' || host === 'addons.mozilla.org') return false;
+        return true;
+    } catch (_) {
+        return false;
+    }
 }
 function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
@@ -1946,8 +1956,8 @@ function getSystemPrompt() {
 async function scanCurrentPage() {
     try {
         const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (!tabs?.length || !tabs[0].url || tabs[0].url.startsWith('chrome://')) {
-            appendMessage('ai', '⚠️ Cannot scan this page.'); return;
+        if (!tabs?.length || !tabs[0].url || !isSafeUrl(tabs[0].url)) {
+            appendMessage('ai', '⚠️ Cannot scan this page. Chrome does not allow scripting on system pages or the Chrome Web Store. Please open a regular website first.'); return;
         }
         appendMessage('user', 'Scan this webpage for context.', []);
         showTypingIndicator('📄 Scanning webpage...');
@@ -2517,7 +2527,11 @@ async function handleSQ() {
         const tabs=await chrome.tabs.query({active:true,currentWindow:true});
         if(!tabs?.length) return;
         const tab=tabs[0];
-        if(!tab.url||tab.url.startsWith('chrome://')){ appendMessage('ai','Cannot analyze system pages.'); return; }
+        if(!tab.url||!isSafeUrl(tab.url)){
+            appendMessage('ai','⚠️ Cannot analyze this page. Chrome does not permit scripting on system pages or the Chrome Web Store. Please navigate to your quiz or exam website first.');
+            hideTypingIndicator();
+            return;
+        }
         showTypingIndicator("Scanning page for questions & selecting answer...");
         
         const activeProvider = getSelectedAIConfig().provider;
@@ -3025,7 +3039,7 @@ function toggleExamMode() {
     chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
         const tab = tabs?.[0];
         if (!tab || typeof tab.id !== 'number' || !isSafeUrl(tab.url)) {
-            appendMessage('ai', '⚠️ Exam Mode needs an active http/https page. Navigate to your exam first.');
+            appendMessage('ai', '⚠️ Exam Mode needs an active website. Chrome does not allow extensions to run on system pages or the Chrome Web Store. Navigate to your exam website first.');
             return;
         }
         isExamMode = true;
@@ -3074,7 +3088,7 @@ async function runExamModeStep() {
         catch(_) { examAppendMessage('📌 Exam tab closed. Stopping.'); if (isExamMode) toggleExamMode(); return; }
 
         if (!tab?.url || !isSafeUrl(tab.url)) {
-            examAppendMessage('⚠️ Exam tab is a system page. Stopping.'); if (isExamMode) toggleExamMode(); return;
+            examAppendMessage('🛑 Exam Mode stopped: Active tab is a system page or extension gallery (cannot be scripted). Please switch to your exam website.'); if (isExamMode) toggleExamMode(); return;
         }
 
         updateExamBannerStatus(examModeTabId, 'Reading page…');
@@ -3244,9 +3258,19 @@ Respond with ONLY a JSON array, e.g.: ["True","Paris","All of the above"]`;
 
     } catch(err) {
         const msg = err?.message || String(err);
-        // Stop on tab/permission errors — no point retrying
-        if (msg.includes('tabId') || msg.includes('No tab') || msg.includes('Cannot access') || msg.includes('closed')) {
-            examAppendMessage('⚠️ Exam tab inaccessible. Stopping.'); if (isExamMode) toggleExamMode(); return;
+        // Stop immediately on tab/permission errors or unscriptable pages — do not retry in an infinite loop
+        if (
+            msg.includes('tabId') || 
+            msg.includes('No tab') || 
+            msg.includes('Cannot access') || 
+            msg.includes('cannot be scripted') || 
+            msg.includes('extensions gallery') || 
+            msg.includes('closed') ||
+            msg.includes('Frame with ID')
+        ) {
+            examAppendMessage('🛑 Exam Mode stopped: Chrome does not allow scripting on this page (system pages and the Chrome Web Store are protected). Please switch to your exam website.');
+            if (isExamMode) toggleExamMode();
+            return;
         }
         examAppendMessage(`⚠️ Error: ${sanitize(msg)} — Retrying…`);
         if (isExamMode) examModeTimeout = setTimeout(runExamModeStep, 5000);
