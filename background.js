@@ -228,9 +228,13 @@ async function generateSelectionAnswer(text, config, history = [], options = {})
             url = `${nooraBase}/chat/completions`;
             const key = apiKey || config?.keys?.noora || 'YOUR_API_KEY_HERE';
             if (key) headers.Authorization = `Bearer ${key}`;
+            const trimmedPrompt = promptText.length > 2500 ? promptText.substring(0, 2500) : promptText;
+            const trimmedSys = systemPrompt.length > 400 ? systemPrompt.substring(0, 400) : systemPrompt;
             body = JSON.stringify({
                 model,
-                messages: [{ role: 'system', content: systemPrompt }, ...providerHistory, { role: 'user', content: promptText }],
+                messages: [{ role: 'system', content: trimmedSys }, { role: 'user', content: trimmedPrompt }],
+                max_tokens: 512,
+                temperature: 0.3,
                 stream: false
             });
         } else if (provider === 'cloudflare_ai_gateway') {

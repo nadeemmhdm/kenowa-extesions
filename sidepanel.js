@@ -157,6 +157,10 @@ function getOpenAIMessageText(data) {
     return '';
 }
 function getOpenAIRequestOptions(provider, model) {
+    if (provider === 'noora') {
+        // Noora LAN server has a 2048 token context window; cap generation to 512 tokens to reserve prompt space
+        return { max_tokens: 512, temperature: 0.3 };
+    }
     if (provider !== 'groq') return {};
     const options = { temperature: 1, max_completion_tokens: 2048, top_p: 1, stop: null };
     if (String(model).startsWith('openai/gpt-oss')) options.reasoning_effort = 'medium';
@@ -2003,7 +2007,7 @@ async function handleSend(textOverride=null, executionOptions={}) {
     if (!currentChatId) currentChatId = Date.now().toString();
     const lockedChatId = currentChatId;
     const aiConfig = executionOptions.config || getSelectedAIConfig();
-    const capsuleMaxChars = aiConfig.provider === 'noora' ? 3500 : CAPSULE_MAX_TOTAL_CHARS;
+    const capsuleMaxChars = aiConfig.provider === 'noora' ? 800 : CAPSULE_MAX_TOTAL_CHARS;
     const { context: capsuleContext, sources: retrievedSources } = getCapsuleReferenceData(text, capsuleMaxChars);
     const sysPrompt = getSystemPrompt() + capsuleContext;
 
@@ -2103,7 +2107,32 @@ async function handleSend(textOverride=null, executionOptions={}) {
                             }
                         }
                         if (proxyRes && !proxyRes.ok) {
-                            throw new Error(`Noora server error (${proxyRes.status || 'network'}): ${proxyRes.error || proxyRes.rawText || 'Server unreachable'}`);
+                            const rawErr = proxyRes.error || proxyRes.rawText || '';
+                            if (/exceed_context_size_error|exceeds the available context size|context size/i.test(rawErr)) {
+                                console.warn('Noora context overflow in chat, retrying with trimmed user message only...');
+                                const retryRes = await chrome.runtime.sendMessage({
+                                    type: 'kenowa-proxy-fetch',
+                                    url,
+                                    method: 'POST',
+                                    headers,
+                                    body: JSON.stringify({
+                                        model,
+                                        messages: [{ role: 'user', content: String(typeof userContent === 'string' ? userContent : text).substring(0, 2500) }],
+                                        ...getOpenAIRequestOptions(provider, model),
+                                        stream: false
+                                    })
+                                });
+                                if (retryRes && retryRes.ok && retryRes.data) {
+                                    const retryContent = getOpenAIMessageText(retryRes.data) || getOpenAIDeltaText(retryRes.data);
+                                    if (retryContent) {
+                                        sm.update(retryContent);
+                                        const aiMessage = sm.finalize(retrievedSources, text);
+                                        if (!isExamMode && !isSQMode) setTimeout(() => getAISuggestions(text, aiMessage), 500);
+                                        return;
+                                    }
+                                }
+                            }
+                            throw new Error(`Noora server error (${proxyRes.status || 'network'}): ${rawErr || 'Server unreachable'}`);
                         }
                     } catch (proxyErr) {
                         throw new Error(`Could not connect to Noora local AI at ${url}. Ensure your server is running on LAN (e.g. http://192.168.31.110:8080/v1). Detail: ${proxyErr.message || netErr.message}`);
@@ -2491,16 +2520,52 @@ async function handleSQ() {
         if(!tab.url||tab.url.startsWith('chrome://')){ appendMessage('ai','Cannot analyze system pages.'); return; }
         showTypingIndicator("Scanning page for questions & selecting answer...");
         
-        const extraction=await chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>document.body.innerText});
+        const activeProvider = getSelectedAIConfig().provider;
+        const isNoora = activeProvider === 'noora';
+        const extraction=await chrome.scripting.executeScript({
+            target:{tabId:tab.id},
+            func: () => {
+                const findQuestionContent = () => {
+                    const moodleQ = document.querySelector('.qtext');
+                    let mainText = moodleQ ? moodleQ.innerText.trim() : '';
+
+                    const qContainers = document.querySelectorAll('.que, .question, .form-question, .mc-question, .item-container, [role="radiogroup"], .quiz-question');
+                    if (qContainers.length > 0) {
+                        const container = qContainers[0];
+                        if (!mainText) {
+                            const clone = container.cloneNode(true);
+                            clone.querySelectorAll('.info, .status, .grade, .question-number, .q-metadata, .answer, .ablock, .prompt').forEach(m => m.remove());
+                            mainText = clone.innerText.trim();
+                        }
+                        const options = container.querySelectorAll('.answer, .ablock, .choice, .option, .choices');
+                        if (options.length > 0) {
+                            const optionList = Array.from(options[0].querySelectorAll('div, label, span'))
+                                .map(el => el.innerText.trim())
+                                .filter(t => t.length > 0 && !t.includes('Select one:') && !t.includes('Marked out of'));
+                            const uniqueOptions = [...new Set(optionList)].slice(0, 8);
+                            if (uniqueOptions.length > 0) {
+                                mainText += "\nChoices:\n" + uniqueOptions.join('\n');
+                            }
+                        }
+                        return mainText;
+                    }
+                    const main = document.querySelector('main, #main, #content, .content, #page-content, .region-main, #main-content');
+                    if (main) return main.innerText.trim();
+                    return document.body?.innerText || '';
+                };
+                const raw = findQuestionContent();
+                return (raw || '').replace(/\n\s*\n\s*\n+/g, '\n\n').trim();
+            }
+        });
         if(extraction?.[0]?.result){
-            const pageText=extraction[0].result.substring(0,14000);
-            const { context: capsuleCtx, sources: capsuleSources } = getCapsuleReferenceData(pageText);
-            const prompt=`You are an expert exam-answering assistant. Below is raw text scraped from an online quiz/exam page.
-${capsuleCtx ? '\n' + capsuleCtx : ''}
+            const pageLimit = isNoora ? 2400 : 12000;
+            const pageText = extraction[0].result.substring(0, pageLimit);
+            const prompt=`You are an expert exam-answering assistant. Below is text from an online quiz/exam question.
+
 TASK:
-1. Find every visible multiple-choice or multi-select question.
+1. Identify the multiple-choice or multi-select question and its options.
 2. Pick the single best correct answer for each question.
-3. Return ONLY a valid JSON array of exact answer texts, copied word-for-word from the page.
+3. Return ONLY a valid JSON array of exact answer texts, copied word-for-word from the text.
 4. Include NOTHING else — no explanations, numbers, or commentary.
 5. If the page has no answerable questions, return: []
 
@@ -2738,9 +2803,21 @@ async function apiGenerateText(prompt) {
     const isOllamaLocal = provider === 'ollama_local';
     const isOllamaCloud = provider === 'ollama_cloud' || provider === 'ollama';
     const isNoora = provider === 'noora';
-    const capsuleMax = isNoora ? 3500 : 18000;
-    const capsuleContext = getCapsuleReferenceContext(prompt, capsuleMax);
+    let capsuleContext = '';
+    if (!prompt.includes('CAPSULE REFERENCE CONTEXT') && !prompt.includes('CAPSULE DATA:')) {
+        const capsuleMax = isNoora ? 500 : 18000;
+        if (!isNoora || prompt.length < 2000) {
+            capsuleContext = getCapsuleReferenceContext(prompt, capsuleMax);
+        }
+    }
     if (capsuleContext) prompt = `${prompt}\n\n${capsuleContext}`;
+
+    if (isNoora && prompt.length > 3200) {
+        // Strict clamp for Noora's 2048 token window
+        const head = prompt.substring(0, 500);
+        const tail = prompt.substring(prompt.length - 2500);
+        prompt = `${head}\n...[content trimmed to fit 2048 context window]...\n${tail}`;
+    }
     let url, body, headers = { 'Content-Type': 'application/json' };
 
     if (!apiKey && !isOllamaLocal && !isNoora) {
@@ -2808,7 +2885,31 @@ async function apiGenerateText(prompt) {
                 if (proxyRes && proxyRes.ok && proxyRes.data) {
                     data = proxyRes.data;
                 } else if (proxyRes && !proxyRes.ok) {
-                    throw new Error(`Noora server error (${proxyRes.status || 'network'}): ${proxyRes.error || proxyRes.rawText || 'Server unreachable'}`);
+                    const rawError = proxyRes.error || proxyRes.rawText || '';
+                    if (/exceed_context_size_error|exceeds the available context size|context size/i.test(rawError)) {
+                        console.warn('Noora context overflow in apiGenerateText, retrying with ultra-compact prompt...');
+                        const compactPrompt = prompt.substring(0, 400) + '\n\nQuestion excerpt:\n' + prompt.substring(Math.max(0, prompt.length - 1400));
+                        const retryBody = JSON.stringify({
+                            model,
+                            messages: [{ role: 'user', content: compactPrompt }],
+                            ...getOpenAIRequestOptions(provider, model),
+                            stream: false
+                        });
+                        const retryRes = await chrome.runtime.sendMessage({
+                            type: 'kenowa-proxy-fetch',
+                            url,
+                            method: 'POST',
+                            headers,
+                            body: retryBody
+                        });
+                        if (retryRes && retryRes.ok && retryRes.data) {
+                            data = retryRes.data;
+                        } else {
+                            throw new Error(`Noora server error (${retryRes?.status || proxyRes.status || 'network'}): ${retryRes?.error || retryRes?.rawText || rawError}`);
+                        }
+                    } else {
+                        throw new Error(`Noora server error (${proxyRes.status || 'network'}): ${rawError || 'Server unreachable'}`);
+                    }
                 } else {
                     throw fetchErr;
                 }
@@ -2826,7 +2927,12 @@ async function apiGenerateText(prompt) {
         return null;
     } catch (error) {
         if (controller.signal.aborted) throw new Error(`The selected ${provider} model (${model}) did not respond within 90 seconds.`);
-        if (provider === 'noora') throw new Error(`Could not connect to Noora local AI at ${url}. Ensure server is running on LAN (e.g. http://192.168.31.110:8080/v1). Detail: ${error.message}`);
+        if (provider === 'noora') {
+            if (error.message?.includes('Noora server error') || error.message?.includes('exceed')) {
+                throw new Error(`Noora local AI error: ${error.message}`);
+            }
+            throw new Error(`Could not connect to Noora local AI at ${url}. Ensure server is running on LAN (e.g. http://192.168.31.110:8080/v1). Detail: ${error.message}`);
+        }
         if (isOllamaCloud) throw new Error(`Could not connect to Ollama Cloud at https://ollama.com/api/chat. Detail: ${error.message}`);
         if (isOllamaLocal) throw new Error(`Could not connect to local Ollama at ${getOllamaBaseUrl()}. Ensure Ollama is running ('ollama serve'). Detail: ${error.message}`);
         throw error;
@@ -3082,7 +3188,14 @@ async function runExamModeStep() {
         // ── 2. Cache miss — call AI ────────────────────────────
         if (isWatching) showTypingIndicator('🎓 Exam Mode: Analysing question…');
 
-        const prompt = `You are an expert exam-answering assistant. Below is raw text scraped from an online quiz/exam page.
+        const activeProvider = getSelectedAIConfig().provider;
+        const isNoora = activeProvider === 'noora';
+        const examLimit = isNoora ? 2400 : 12000;
+        const examInputText = (extractedQuestionText && extractedQuestionText.length > 20)
+            ? extractedQuestionText.substring(0, examLimit)
+            : pageText.replace(/\n\s*\n\s*\n+/g, '\n\n').trim().substring(0, examLimit);
+
+        const prompt = `You are an expert exam-answering assistant. Below is text from an online quiz/exam question.
 
 TASK:
 1. Find every visible multiple-choice or multi-select question.
@@ -3094,7 +3207,7 @@ TASK:
 IMPORTANT: Copy the answer text EXACTLY as it appears. Even minor differences will prevent selection.
 
 Page text:
-${pageText.substring(0, 14000)}
+${examInputText}
 
 Respond with ONLY a JSON array, e.g.: ["True","Paris","All of the above"]`;
 
@@ -3850,7 +3963,9 @@ async function runMultiExamStep() {
             if (multiExamActive) setTimeout(runMultiExamStep, 3000);
             return;
         }
-        const prompt = `You are an expert exam assistant. Find all questions on this page and return ONLY a JSON array of exact answer texts. If no questions, return [].\n\nPage text:\n${pageText}`;
+        const isNoora = getSelectedAIConfig().provider === 'noora';
+        const multiLimit = isNoora ? 2400 : 8000;
+        const prompt = `You are an expert exam assistant. Find all questions on this page and return ONLY a JSON array of exact answer texts. If no questions, return [].\n\nPage text:\n${pageText.substring(0, multiLimit)}`;
         showTypingIndicator(`📚 Multi-Exam: Tab ${multiExamIndex + 1}/${examModeTabIds.length}`);
         const aiRaw = await apiGenerateText(prompt);
         hideTypingIndicator();
