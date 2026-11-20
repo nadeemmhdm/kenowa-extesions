@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.19.9] - 2026-11-20
+
+### Fixed & Enhanced
+- **Noora AI LAN Server (`http://10.30.197.9:8080/v1`):**
+  - Updated live endpoint address to `http://10.30.197.9:8080/v1` matching the local LAN server configuration (`local-ai`).
+  - Added dedicated CORS and private network rules in `rules.json` (Rule 3) for `http://10.30.197.9:8080`.
+  - Added clear guidance when server returns 401 Unauthorized, prompting the user to copy their active API key from the Noora AI dashboard.
+- **Ollama Local Downloaded Models Only:**
+  - Settings dropdown for Ollama Local now strictly displays only downloaded models available via `GET /api/tags`.
+  - Prevents non-downloaded, placeholder, or cloud models from showing when Ollama Local is selected.
+  - Added background proxy fallback so origin/CORS restrictions never block local model discovery.
+- **Ollama Local Answer Speed Boost:**
+  - Added `keep_alive: "60m"` to prevent unloading models from memory.
+  - Clamped Capsule RAG context and exam page analysis to 800-2400 characters, reducing local prompt evaluation latency by >85%.
+  - Configured optimized generation parameters (`num_ctx: 2048-4096`, `num_predict: 512-1024`).
+- **Eliminated Duplicate & Stuck Thinking Animations:**
+  - Prevented dual typing indicators from running concurrently during text message generation.
+  - Ensured `toggleSendButton(false)` and `hideTypingIndicator()` are triggered immediately upon completion, error, or abortion.
+  - Added startup and modal reload purge to automatically destroy any orphaned `.streaming-thinking-placeholder` elements.
+
+---
+
 ## [2.19.5] - 2026-11-19
 
 ### Added

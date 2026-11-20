@@ -16,9 +16,9 @@ function getOllamaBaseUrl() {
 }
 
 function getNooraEndpoints(customUrl = null) {
-    let raw = (customUrl || localStorage.getItem('kenowa_noora_url') || 'http://192.168.31.110:8080/v1').trim().replace(/\/+$/, '');
-    if (!raw || raw.includes('192.168.1.100') || raw.includes('10.30.197.9')) {
-        raw = 'http://192.168.31.110:8080/v1';
+    let raw = (customUrl || localStorage.getItem('kenowa_noora_url') || 'http://10.30.197.9:8080/v1').trim().replace(/\/+$/, '');
+    if (!raw || raw.includes('192.168.1.100') || raw.includes('192.168.31.110')) {
+        raw = 'http://10.30.197.9:8080/v1';
         localStorage.setItem('kenowa_noora_url', raw);
     }
     let v1Base = raw;
@@ -228,16 +228,7 @@ const BUILTIN_MODELS = {
         { id: 'meta-llama/llama-3.1-8b-instruct:free', name: 'LLaMA 3.1 8B Free' },
         { id: 'mistralai/mistral-7b-instruct:free', name: 'Mistral 7B Free' }
     ],
-    ollama_local: [
-        { id: 'llama3.2:latest', name: 'LLaMA 3.2 (Local)' },
-        { id: 'llama3.1:8b', name: 'LLaMA 3.1 8B (Local)' },
-        { id: 'deepseek-r1:8b', name: 'DeepSeek R1 8B (Local)' },
-        { id: 'deepseek-r1:1.5b', name: 'DeepSeek R1 1.5B (Local)' },
-        { id: 'qwen2.5-coder:7b', name: 'Qwen 2.5 Coder 7B (Local)' },
-        { id: 'qwen2.5:7b', name: 'Qwen 2.5 7B (Local)' },
-        { id: 'mistral:latest', name: 'Mistral 7B (Local)' },
-        { id: 'phi3:latest', name: 'Phi 3 (Local)' }
-    ],
+    ollama_local: [],
     ollama_cloud: [
         { id: 'gemma4:31b', name: 'Gemma 4 31B Cloud' },
         { id: 'qwen3-coder:480b', name: 'Qwen3 Coder 480B Cloud' },
@@ -256,10 +247,23 @@ function defaultModelForProvider(provider) {
     if (provider === 'cloudflare_ai_gateway') return '@cf/moonshotai/kimi-k2.6';
     if (provider === 'mistral') return 'mistral-small-latest';
     if (provider === 'ollama_cloud' || provider === 'ollama') return 'gemma4:31b';
-    if (provider === 'ollama_local') return 'llama3.2:latest';
+    if (provider === 'ollama_local') {
+        const cached = getProviderModels('ollama_local');
+        if (cached?.models?.length) return cached.models[0].id;
+        return '';
+    }
     return MODEL_QUICK;
 }
 function getSavedModelForProvider(provider) {
+    if (provider === 'ollama_local') {
+        const specific = localStorage.getItem(providerModelKey(provider));
+        const cached = getProviderModels('ollama_local');
+        if (cached?.models?.length) {
+            if (specific && cached.models.some(m => m.id === specific)) return specific;
+            return cached.models[0].id;
+        }
+        return specific || '';
+    }
     const specific = localStorage.getItem(providerModelKey(provider));
     if (specific) {
         if (provider === 'cloudflare_ai_gateway' && !specific.startsWith('@cf/')) return defaultModelForProvider(provider);
@@ -1135,6 +1139,19 @@ function normalizeProviderModels(provider, data) {
             .map(m => ({ id: String(m.name || '').replace(/^models\//, ''), name: m.displayName || m.name, provider, context: m.inputTokenLimit || 0, vision: (m.supportedGenerationMethods || []).includes('generateContent') }))
             .filter(m => m.id);
     }
+    if (provider === 'ollama_local') {
+        return (data.models || []).map(m => {
+            const id = m.name || m.model;
+            const sizeGB = m.size ? ` (${(m.size / (1024 * 1024 * 1024)).toFixed(1)} GB)` : '';
+            return {
+                id,
+                name: `${id}${sizeGB}`,
+                provider,
+                context: m.details?.context_length || 0,
+                vision: (m.details?.families || []).some(f => /clip|vision/i.test(f))
+            };
+        }).filter(m => m.id);
+    }
     if (provider === 'openrouter' || provider === 'groq' || provider === 'mistral' || provider === 'cloudflare_ai_gateway' || provider === 'noora') {
         const modelData = Array.isArray(data) ? data : (data.data || data.models || []);
         const valid = modelData.filter(m => m && m.capabilities?.completion_chat !== false && !m.archived)
@@ -1202,6 +1219,18 @@ async function discoverProviderModels(provider, apiKey) {
             return saveProviderModels(provider, BUILTIN_MODELS.noora);
         } else if (provider === 'ollama_local') {
             const baseUrl = getOllamaBaseUrl();
+            try {
+                const proxyRes = await chrome.runtime.sendMessage({
+                    type: 'kenowa-proxy-fetch',
+                    url,
+                    method: 'GET',
+                    headers
+                });
+                if (proxyRes && proxyRes.ok && proxyRes.data) {
+                    const models = normalizeProviderModels(provider, proxyRes.data);
+                    if (models.length) return saveProviderModels(provider, models);
+                }
+            } catch (_) {}
             throw new Error(`Could not connect to local Ollama at ${baseUrl}. Ensure Ollama is running ('ollama serve') and accessible.`);
         } else if (provider === 'ollama_cloud' || provider === 'ollama') {
             throw new Error(`Could not connect to Ollama Cloud at https://ollama.com/api/tags. Check your API key and internet connection.`);
@@ -1223,7 +1252,7 @@ async function discoverProviderModels(provider, apiKey) {
     const models = normalizeProviderModels(provider, await response.json());
     if (!models.length) {
         if (provider === 'noora') return saveProviderModels(provider, BUILTIN_MODELS.noora);
-        if (provider === 'ollama_local') throw new Error('Ollama is running, but no local models were found. Run: ollama pull llama3.2');
+        if (provider === 'ollama_local') throw new Error('Ollama is running, but no downloaded models were found. Run: ollama pull <model>');
         throw new Error('No generation models were returned for this key.');
     }
     return saveProviderModels(provider, models);
@@ -1244,6 +1273,36 @@ function renderProviderModels(provider, selectedModel) {
     const group = document.createElement('optgroup');
     const labelName = provider === 'openrouter' ? 'OpenRouter' : provider === 'groq' ? 'Groq' : provider === 'mistral' ? 'Mistral AI' : provider === 'cloudflare_ai_gateway' ? 'Cloudflare AI Gateway' : provider === 'ollama_local' ? 'Ollama Local' : (provider === 'ollama_cloud' || provider === 'ollama') ? 'Ollama Cloud' : provider === 'noora' ? 'Noora' : 'Google Gemini';
     group.label = `${labelName} · Available models`;
+
+    if (provider === 'ollama_local') {
+        const modelsList = cached?.models || [];
+        if (!modelsList.length) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = '(No downloaded models found · Run: ollama pull <model>)';
+            opt.disabled = true;
+            opt.selected = true;
+            select.appendChild(opt);
+            setModelsStatus('No downloaded models found. Run "ollama pull <model>" in your terminal.', 'error');
+            return;
+        }
+        let selectedFound = false;
+        modelsList.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.id;
+            option.textContent = model.name || model.id;
+            if (model.id === modelToPreserve) { option.selected = true; selectedFound = true; }
+            group.appendChild(option);
+        });
+        select.appendChild(group);
+        if (!selectedFound && modelsList.length > 0) {
+            select.value = modelsList[0].id;
+            persistSelectedModel('ollama_local', modelsList[0].id);
+        }
+        const age = Math.max(1, Math.round((Date.now() - cached.fetchedAt) / 60000));
+        setModelsStatus(`${modelsList.length} downloaded model${modelsList.length > 1 ? 's' : ''} available · refreshed ${age < 60 ? `${age}m` : `${Math.round(age / 60)}h`} ago`, 'ready');
+        return;
+    }
 
     const modelsList = (cached?.models && cached.models.length > 0) ? cached.models : (BUILTIN_MODELS[provider] || BUILTIN_MODELS.ollama_cloud || []);
 
@@ -1382,6 +1441,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     lessonNextBtn    = document.getElementById('lesson-next-btn');
     lessonSkipBtn    = document.getElementById('lesson-skip-btn');
 
+    // Startup cleanup: ensure animations and buttons are reset
+    hideTypingIndicator();
+    toggleSendButton(false);
+    if (activeStreamGlobal) {
+        activeStreamGlobal.destroy();
+        activeStreamGlobal = null;
+    }
+    document.querySelectorAll('.streaming-thinking-placeholder').forEach(el => {
+        const parentMsg = el.closest('.message');
+        if (parentMsg) parentMsg.remove();
+    });
+
     const tabForgot     = document.getElementById('tab-forgot');
     const forgotLink    = document.getElementById('forgot-password-link');
     const groupPassword = document.getElementById('group-password');
@@ -1491,7 +1562,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             localStorage.setItem('kenowa_ollama_url', (ollamaUrlInput.value.trim() || 'http://localhost:11434').replace(/\/+$/, ''));
         }
         if (provider === 'noora' && nooraUrlInput) {
-            localStorage.setItem('kenowa_noora_url', (nooraUrlInput.value.trim() || 'http://192.168.31.110:8080/v1').replace(/\/+$/, ''));
+            localStorage.setItem('kenowa_noora_url', (nooraUrlInput.value.trim() || 'http://10.30.197.9:8080/v1').replace(/\/+$/, ''));
         }
         refreshProviderModels(provider, key, modelInput?.value || '');
     };
@@ -1561,7 +1632,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (ollamaCloudKeyInput) localStorage.setItem('kenowa_ollama_key', ollamaCloudKeyInput.value);
         if (ollamaUrlInput) localStorage.setItem('kenowa_ollama_url', (ollamaUrlInput.value.trim() || 'http://localhost:11434').replace(/\/+$/, ''));
         if (nooraKeyInput) localStorage.setItem('kenowa_noora_key', nooraKeyInput.value.trim());
-        if (nooraUrlInput) localStorage.setItem('kenowa_noora_url', (nooraUrlInput.value.trim() || 'http://192.168.31.110:8080/v1').replace(/\/+$/, ''));
+        if (nooraUrlInput) localStorage.setItem('kenowa_noora_url', (nooraUrlInput.value.trim() || 'http://10.30.197.9:8080/v1').replace(/\/+$/, ''));
         const selectedProvider = providerInput?.value || 'gemini';
         if (modelInput) persistSelectedModel(selectedProvider, modelInput.value);
         if (personaSelector) localStorage.setItem('kenowa_persona', personaSelector.value);
@@ -1882,6 +1953,7 @@ function appendMessageStream(chatId, placeholderMessage = 'Kenowa is thinking...
         },
         finalize(sources = null, queryText = ''){
             hideTypingIndicator();
+            toggleSendButton(false);
             if (activeStreamGlobal === streamObj) activeStreamGlobal = null;
             if (!full.trim()) {
                 if (msgDiv && msgDiv.parentNode) {
@@ -1900,6 +1972,7 @@ function appendMessageStream(chatId, placeholderMessage = 'Kenowa is thinking...
         },
         destroy(){
             hideTypingIndicator();
+            toggleSendButton(false);
             if (activeStreamGlobal === streamObj) activeStreamGlobal = null;
             if (msgDiv && msgDiv.parentNode) {
                 msgDiv.parentNode.removeChild(msgDiv);
@@ -2000,8 +2073,13 @@ async function handleSend(textOverride=null, executionOptions={}) {
         }
     }
 
-    const indicatorText=currentMode==='deep'?"Thinking deeply...":currentMode==='image'?"Painting masterpiece...":"Kenowa is thinking...";
-    showTypingIndicator(indicatorText, true); toggleSendButton(true);
+    const indicatorText = currentMode === 'deep' ? "Thinking deeply..." : currentMode === 'image' ? "Painting masterpiece..." : "Kenowa is thinking...";
+    if (currentMode === 'image') {
+        showTypingIndicator(indicatorText, true);
+    } else {
+        hideTypingIndicator();
+    }
+    toggleSendButton(true);
     if(lastSuggestionContainer) {
         lastSuggestionContainer.remove();
         lastSuggestionContainer = null;
@@ -2017,7 +2095,8 @@ async function handleSend(textOverride=null, executionOptions={}) {
     if (!currentChatId) currentChatId = Date.now().toString();
     const lockedChatId = currentChatId;
     const aiConfig = executionOptions.config || getSelectedAIConfig();
-    const capsuleMaxChars = aiConfig.provider === 'noora' ? 800 : CAPSULE_MAX_TOTAL_CHARS;
+    const isLocalAI = aiConfig.provider === 'noora' || aiConfig.provider === 'ollama_local';
+    const capsuleMaxChars = isLocalAI ? 800 : CAPSULE_MAX_TOTAL_CHARS;
     const { context: capsuleContext, sources: retrievedSources } = getCapsuleReferenceData(text, capsuleMaxChars);
     const sysPrompt = getSystemPrompt() + capsuleContext;
 
@@ -2145,15 +2224,18 @@ async function handleSend(textOverride=null, executionOptions={}) {
                             throw new Error(`Noora server error (${proxyRes.status || 'network'}): ${rawErr || 'Server unreachable'}`);
                         }
                     } catch (proxyErr) {
-                        throw new Error(`Could not connect to Noora local AI at ${url}. Ensure your server is running on LAN (e.g. http://192.168.31.110:8080/v1). Detail: ${proxyErr.message || netErr.message}`);
+                        throw new Error(`Could not connect to Noora local AI at ${url}. Ensure your server is running on LAN (e.g. http://10.30.197.9:8080/v1). Detail: ${proxyErr.message || netErr.message}`);
                     }
-                    throw new Error(`Could not connect to Noora local AI at ${url}. Ensure your server is running on LAN (e.g. http://192.168.31.110:8080/v1). Detail: ${netErr.message}`);
+                    throw new Error(`Could not connect to Noora local AI at ${url}. Ensure your server is running on LAN (e.g. http://10.30.197.9:8080/v1). Detail: ${netErr.message}`);
                 }
                 throw netErr;
             }
             if(!response.ok){
                 let e=`API error ${response.status}`;
-                try{const ed=await response.json();e=ed.error?.message||ed.error||JSON.stringify(ed);}catch(_){}
+                try{const ed=await response.json();e=ed.error?.message||ed.error||ed.detail||JSON.stringify(ed);}catch(_){}
+                if (provider === 'noora' && response.status === 401) {
+                    throw new Error(`Noora Unauthorized (401): Please generate and copy an active API key from your Noora AI dashboard, then paste it in Kenowa Settings > Noora API Key.`);
+                }
                 throw new Error(e);
             }
 
@@ -2401,13 +2483,22 @@ async function handleSend(textOverride=null, executionOptions={}) {
             const ollamaImages = imagesToSend.map(img => img.split(',')[1]).filter(Boolean);
             const ollamaBaseUrl = getOllamaBaseUrl();
             url = `${ollamaBaseUrl}/api/chat`;
+            const trimmedPrompt = (text && text.length > 3000) ? text.substring(0, 3000) : (text || "Analyze this image");
+            const trimmedSys = (sysPrompt && sysPrompt.length > 1000) ? sysPrompt.substring(0, 1000) : sysPrompt;
+            const ollamaMessages = [
+                { role: 'system', content: trimmedSys },
+                { role: 'user', content: trimmedPrompt, ...(ollamaImages.length ? { images: ollamaImages } : {}) }
+            ];
             body = JSON.stringify({
                 model,
-                messages: [
-                    { role: 'system', content: sysPrompt },
-                    { role: 'user', content: text || "Analyze this image", ...(ollamaImages.length ? { images: ollamaImages } : {}) }
-                ],
-                stream: true
+                messages: ollamaMessages,
+                stream: true,
+                keep_alive: '60m',
+                options: {
+                    temperature: 0.6,
+                    num_predict: 1024,
+                    num_ctx: 4096
+                }
             });
             if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
             const sm = appendMessageStream(lockedChatId, indicatorText);
@@ -2416,6 +2507,40 @@ async function handleSend(textOverride=null, executionOptions={}) {
                 response = await fetch(url, { method: 'POST', headers, body, signal: requestController.signal });
             } catch (netErr) {
                 if (requestController.signal.aborted) throw netErr;
+                console.warn(`Direct fetch to Ollama Local failed (${netErr.message}), falling back to background worker proxy...`);
+                try {
+                    const proxyRes = await chrome.runtime.sendMessage({
+                        type: 'kenowa-proxy-fetch',
+                        url,
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({
+                            model,
+                            messages: ollamaMessages,
+                            stream: false,
+                            keep_alive: '60m',
+                            options: {
+                                temperature: 0.6,
+                                num_predict: 1024,
+                                num_ctx: 4096
+                            }
+                        })
+                    });
+                    if (proxyRes && proxyRes.ok && proxyRes.data) {
+                        const content = proxyRes.data?.message?.content || '';
+                        if (content) {
+                            sm.update(content);
+                            const aiMessage = sm.finalize(retrievedSources, text);
+                            if (!isExamMode && !isSQMode) setTimeout(() => getAISuggestions(text, aiMessage), 500);
+                            return;
+                        }
+                    }
+                    if (proxyRes && !proxyRes.ok) {
+                        throw new Error(`Ollama Local error (${proxyRes.status || 'network'}): ${proxyRes.error || proxyRes.rawText || 'Server unreachable'}`);
+                    }
+                } catch (proxyErr) {
+                    throw new Error(`Could not connect to local Ollama at ${ollamaBaseUrl}. Make sure Ollama is running ('ollama serve' or open the Ollama app). Detail: ${proxyErr.message || netErr.message}`);
+                }
                 throw new Error(`Could not connect to local Ollama at ${ollamaBaseUrl}. Make sure Ollama is running ('ollama serve' or open the Ollama app). Detail: ${netErr.message}`);
             }
             if (!response.ok) {
@@ -2467,6 +2592,8 @@ async function handleSend(textOverride=null, executionOptions={}) {
             return;
         }
     } catch(err){
+        hideTypingIndicator();
+        toggleSendButton(false);
         if (activeStreamGlobal) {
             activeStreamGlobal.destroy();
             activeStreamGlobal = null;
@@ -2535,7 +2662,7 @@ async function handleSQ() {
         showTypingIndicator("Scanning page for questions & selecting answer...");
         
         const activeProvider = getSelectedAIConfig().provider;
-        const isNoora = activeProvider === 'noora';
+        const isLocalAI = activeProvider === 'noora' || activeProvider === 'ollama_local';
         const extraction=await chrome.scripting.executeScript({
             target:{tabId:tab.id},
             func: () => {
@@ -2572,7 +2699,7 @@ async function handleSQ() {
             }
         });
         if(extraction?.[0]?.result){
-            const pageLimit = isNoora ? 2400 : 12000;
+            const pageLimit = isLocalAI ? 2400 : 12000;
             const pageText = extraction[0].result.substring(0, pageLimit);
             const prompt=`You are an expert exam-answering assistant. Below is text from an online quiz/exam question.
 
@@ -2819,8 +2946,8 @@ async function apiGenerateText(prompt) {
     const isNoora = provider === 'noora';
     let capsuleContext = '';
     if (!prompt.includes('CAPSULE REFERENCE CONTEXT') && !prompt.includes('CAPSULE DATA:')) {
-        const capsuleMax = isNoora ? 500 : 18000;
-        if (!isNoora || prompt.length < 2000) {
+        const capsuleMax = (isNoora || isOllamaLocal) ? 500 : 18000;
+        if ((!isNoora && !isOllamaLocal) || prompt.length < 2000) {
             capsuleContext = getCapsuleReferenceContext(prompt, capsuleMax);
         }
     }
@@ -2865,7 +2992,18 @@ async function apiGenerateText(prompt) {
     } else if (isOllamaLocal) {
         const ollamaBaseUrl = getOllamaBaseUrl();
         url = `${ollamaBaseUrl}/api/chat`;
-        body = JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], stream: false });
+        const trimmedPrompt = prompt.length > 2500 ? prompt.substring(0, 2500) : prompt;
+        body = JSON.stringify({
+            model,
+            messages: [{ role: 'user', content: trimmedPrompt }],
+            stream: false,
+            keep_alive: '60m',
+            options: {
+                temperature: 0.2,
+                num_predict: 512,
+                num_ctx: 2048
+            }
+        });
         if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
     } else {
         throw new Error(`Unsupported AI provider: ${provider}`);
@@ -2888,7 +3026,7 @@ async function apiGenerateText(prompt) {
             data = await res.json();
         } catch (fetchErr) {
             if (controller.signal.aborted) throw fetchErr;
-            if (provider === 'noora') {
+            if (provider === 'noora' || isOllamaLocal) {
                 const proxyRes = await chrome.runtime.sendMessage({
                     type: 'kenowa-proxy-fetch',
                     url,
@@ -2900,7 +3038,7 @@ async function apiGenerateText(prompt) {
                     data = proxyRes.data;
                 } else if (proxyRes && !proxyRes.ok) {
                     const rawError = proxyRes.error || proxyRes.rawText || '';
-                    if (/exceed_context_size_error|exceeds the available context size|context size/i.test(rawError)) {
+                    if (provider === 'noora' && /exceed_context_size_error|exceeds the available context size|context size/i.test(rawError)) {
                         console.warn('Noora context overflow in apiGenerateText, retrying with ultra-compact prompt...');
                         const compactPrompt = prompt.substring(0, 400) + '\n\nQuestion excerpt:\n' + prompt.substring(Math.max(0, prompt.length - 1400));
                         const retryBody = JSON.stringify({
@@ -2922,7 +3060,8 @@ async function apiGenerateText(prompt) {
                             throw new Error(`Noora server error (${retryRes?.status || proxyRes.status || 'network'}): ${retryRes?.error || retryRes?.rawText || rawError}`);
                         }
                     } else {
-                        throw new Error(`Noora server error (${proxyRes.status || 'network'}): ${rawError || 'Server unreachable'}`);
+                        const errLabel = provider === 'noora' ? 'Noora server error' : 'Ollama Local error';
+                        throw new Error(`${errLabel} (${proxyRes.status || 'network'}): ${rawError || 'Server unreachable'}`);
                     }
                 } else {
                     throw fetchErr;
@@ -3203,8 +3342,8 @@ async function runExamModeStep() {
         if (isWatching) showTypingIndicator('🎓 Exam Mode: Analysing question…');
 
         const activeProvider = getSelectedAIConfig().provider;
-        const isNoora = activeProvider === 'noora';
-        const examLimit = isNoora ? 2400 : 12000;
+        const isLocalAI = activeProvider === 'noora' || activeProvider === 'ollama_local';
+        const examLimit = isLocalAI ? 2400 : 12000;
         const examInputText = (extractedQuestionText && extractedQuestionText.length > 20)
             ? extractedQuestionText.substring(0, examLimit)
             : pageText.replace(/\n\s*\n\s*\n+/g, '\n\n').trim().substring(0, examLimit);
