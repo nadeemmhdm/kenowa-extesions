@@ -145,7 +145,7 @@
       ]
     },
     "condition": {
-      "urlFilter": "||192.168.31.110:8080",
+      "regexFilter": "^http:\\/\\/.*:8080\\/.*",
       "resourceTypes": ["xmlhttprequest"]
     }
   }

@@ -17,9 +17,9 @@ function getOllamaBaseUrl() {
 
 function getNooraEndpoints(customUrl = null) {
     let raw = (customUrl || localStorage.getItem('kenowa_noora_url') || 'http://10.30.197.9:8080/v1').trim().replace(/\/+$/, '');
-    if (!raw || raw.includes('192.168.1.100') || raw.includes('192.168.31.110')) {
-        raw = 'http://10.30.197.9:8080/v1';
-        localStorage.setItem('kenowa_noora_url', raw);
+    if (!raw) raw = 'http://10.30.197.9:8080/v1';
+    if (!raw.startsWith('http://') && !raw.startsWith('https://')) {
+        raw = `http://${raw}`;
     }
     let v1Base = raw;
     let root = raw;
@@ -1611,6 +1611,55 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
+    // Dynamic Noora Base URL collector & preset switcher
+    document.querySelectorAll('.noora-preset-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const url = btn.getAttribute('data-url');
+            if (nooraUrlInput && url) {
+                nooraUrlInput.value = url;
+                localStorage.setItem('kenowa_noora_url', url);
+                localStorage.setItem(providerModelKey('noora'), 'local-ai');
+                if (modelInput && providerInput?.value === 'noora') modelInput.value = 'local-ai';
+                syncProviderConfigToBackground().catch(() => {});
+                showToast(`Noora endpoint set to ${url} (model: local-ai)`, 'success');
+                if (providerInput?.value === 'noora') {
+                    refreshProviderModels('noora', nooraKeyInput?.value.trim() || '', 'local-ai');
+                }
+            }
+        });
+    });
+
+    if (nooraUrlInput) {
+        let nooraUrlTimer;
+        nooraUrlInput.addEventListener('input', () => {
+            clearTimeout(nooraUrlTimer);
+            nooraUrlTimer = setTimeout(() => {
+                const val = nooraUrlInput.value.trim().replace(/\/+$/, '');
+                if (val.length > 7) {
+                    const normalized = val.startsWith('http://') || val.startsWith('https://') ? val : `http://${val}`;
+                    localStorage.setItem('kenowa_noora_url', normalized);
+                    localStorage.setItem(providerModelKey('noora'), 'local-ai');
+                    syncProviderConfigToBackground().catch(() => {});
+                    if (providerInput?.value === 'noora') {
+                        refreshProviderModels('noora', nooraKeyInput?.value.trim() || '', 'local-ai');
+                    }
+                }
+            }, 600);
+        });
+        nooraUrlInput.addEventListener('change', () => {
+            const val = nooraUrlInput.value.trim().replace(/\/+$/, '');
+            if (val.length > 7) {
+                const normalized = val.startsWith('http://') || val.startsWith('https://') ? val : `http://${val}`;
+                localStorage.setItem('kenowa_noora_url', normalized);
+                localStorage.setItem(providerModelKey('noora'), 'local-ai');
+                syncProviderConfigToBackground().catch(() => {});
+                if (providerInput?.value === 'noora') {
+                    refreshProviderModels('noora', nooraKeyInput?.value.trim() || '', 'local-ai');
+                }
+            }
+        });
+    }
+
     if (closeSettingsBtn) closeSettingsBtn.addEventListener('click', () => {
         if (settingsModal) { settingsModal.classList.add('hidden'); document.body.classList.remove('modal-open'); }
     });
@@ -1632,7 +1681,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (ollamaCloudKeyInput) localStorage.setItem('kenowa_ollama_key', ollamaCloudKeyInput.value);
         if (ollamaUrlInput) localStorage.setItem('kenowa_ollama_url', (ollamaUrlInput.value.trim() || 'http://localhost:11434').replace(/\/+$/, ''));
         if (nooraKeyInput) localStorage.setItem('kenowa_noora_key', nooraKeyInput.value.trim());
-        if (nooraUrlInput) localStorage.setItem('kenowa_noora_url', (nooraUrlInput.value.trim() || 'http://10.30.197.9:8080/v1').replace(/\/+$/, ''));
+        if (nooraUrlInput) {
+            const raw = nooraUrlInput.value.trim().replace(/\/+$/, '');
+            const normalized = raw ? (raw.startsWith('http://') || raw.startsWith('https://') ? raw : `http://${raw}`) : 'http://10.30.197.9:8080/v1';
+            localStorage.setItem('kenowa_noora_url', normalized);
+            if (selectedProvider === 'noora') {
+                persistSelectedModel('noora', 'local-ai');
+            }
+        }
         const selectedProvider = providerInput?.value || 'gemini';
         if (modelInput) persistSelectedModel(selectedProvider, modelInput.value);
         if (personaSelector) localStorage.setItem('kenowa_persona', personaSelector.value);

@@ -223,7 +223,7 @@ async function generateSelectionAnswer(text, config, history = [], options = {})
             body = JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, ...providerHistory, { role: 'user', content: promptText }], ...(provider === 'groq' ? { temperature: 1, max_completion_tokens: 2048, top_p: 1, stop: null, ...(String(model).startsWith('openai/gpt-oss') ? { reasoning_effort: 'medium' } : {}) } : {}), stream: false });
         } else if (provider === 'noora') {
             let nooraBase = String(config?.nooraUrl || 'http://10.30.197.9:8080/v1').trim().replace(/\/+$/, '') || 'http://10.30.197.9:8080/v1';
-            if (nooraBase.includes('192.168.1.100')) nooraBase = 'http://10.30.197.9:8080/v1';
+            if (!nooraBase.startsWith('http://') && !nooraBase.startsWith('https://')) nooraBase = `http://${nooraBase}`;
             if (!nooraBase.endsWith('/v1')) nooraBase = `${nooraBase}/v1`;
             url = `${nooraBase}/chat/completions`;
             const key = apiKey || config?.keys?.noora || 'YOUR_API_KEY_HERE';
@@ -285,7 +285,7 @@ async function generateSelectionAnswer(text, config, history = [], options = {})
                 throw new Error(`Could not connect to local Ollama at ${url}. Ensure Ollama is running ('ollama serve') and accessible. Network detail: ${error?.message || error}`);
             }
             if (provider === 'noora') {
-                throw new Error(`Could not connect to Noora AI at ${url}. Ensure your local server is running on LAN (e.g. http://10.30.197.9:8080/v1). Network detail: ${error?.message || error}`);
+                throw new Error(`Could not connect to Noora AI at ${url}. Ensure your local server is running on LAN at that address. Detail: ${error?.message || error}`);
             }
             throw new Error(`Could not reach ${provider}: ${error?.message || error}`);
         }

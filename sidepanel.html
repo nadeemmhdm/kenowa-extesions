@@ -240,16 +240,22 @@
 
         <div id="noora-settings-group" class="provider-settings-group" style="display:none;">
           <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Noora Base URL (LAN / Local)</label>
-          <div style="position:relative;margin-bottom:12px;">
+          <div style="position:relative;margin-bottom:8px;">
             <input type="text" id="settings-noora-url-input" placeholder="http://10.30.197.9:8080/v1" value="http://10.30.197.9:8080/v1" style="width:100%;border:1px solid var(--border);padding:10px;border-radius:6px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);font-family:monospace;font-size:0.84rem;">
-            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Default: <code>http://10.30.197.9:8080/v1</code>. OpenAI-compatible Noora LAN server.</div>
+            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Change anytime to any LAN IP. Model auto-sets to <code>local-ai</code>.</div>
+          </div>
+          <!-- Quick Base URL Presets / Collector -->
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+            <button type="button" class="noora-preset-btn" data-url="http://10.30.197.9:8080/v1" style="background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--text-sub);padding:3px 8px;border-radius:4px;font-size:0.7rem;cursor:pointer;">10.30.197.9</button>
+            <button type="button" class="noora-preset-btn" data-url="http://192.168.31.110:8080/v1" style="background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--text-sub);padding:3px 8px;border-radius:4px;font-size:0.7rem;cursor:pointer;">192.168.31.110</button>
+            <button type="button" class="noora-preset-btn" data-url="http://localhost:8080/v1" style="background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--text-sub);padding:3px 8px;border-radius:4px;font-size:0.7rem;cursor:pointer;">localhost:8080</button>
           </div>
 
           <label style="font-size:0.78rem;color:var(--text-sub);font-weight:600;text-transform:uppercase;letter-spacing:0.7px;display:block;margin-bottom:5px;">Noora API Key</label>
           <div style="position:relative;margin-bottom:14px;">
             <input type="password" id="settings-noora-key-input" placeholder="Paste Noora API Key" value="YOUR_API_KEY_HERE" style="width:100%;border:1px solid var(--border);padding:10px 36px 10px 10px;border-radius:6px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);">
             <button data-key-toggle="settings-noora-key-input" style="position:absolute;right:8px;top:10px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;">👁</button>
-            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Generate key in Noora API Keys tab. Default model: <code>local-ai</code>.</div>
+            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Generate key in Noora API Keys tab. Active model: <code>local-ai</code>.</div>
           </div>
         </div>
 
