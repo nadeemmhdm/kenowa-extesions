@@ -78,7 +78,7 @@
         {
           "header": "origin",
           "operation": "set",
-          "value": "http://10.30.197.9:8080"
+          "value": "http://192.168.31.110:8080"
         }
       ],
       "responseHeaders": [
