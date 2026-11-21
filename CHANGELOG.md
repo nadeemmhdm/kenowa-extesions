@@ -18,11 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed a bug in `utils.js` (`parseMarkdown`) where placeholder tokens `@@CODEBLOCK0@@` failed to expand into formatted code blocks whenever they were embedded inside bullet lists or bold markdown styling (`- **...**`).
   - Added full post-processing replacement across output HTML so that all code block tokens render clean, styled code containers.
   - Sanitized answers in Question Solving (`handleSQ`) and Exam Mode (`runExamModeStep`) by stripping residual backticks, code fences, and tokens before presentation.
-- **Capsule Knowledge Base Integration in Exam & Solve Question Modes:**
-  - Integrated `getCapsuleReferenceData` into both **Exam Mode** (`runExamModeStep`) and **Solve Question Mode** (`handleSQ`).
-  - The extension now actively scans the user's uploaded Capsule notes/materials for verified answers and relevant facts based on question keywords.
-  - Injects high-priority instructions directing the AI model to align strictly with the Capsule reference material when answering.
-  - Surfaces active Capsule sources in chat responses and dynamically updates the in-page exam banner (`Checking Capsule (<filename>)`).
+- **Simultaneous All-Capsule Knowledge Base Checking in Exam & Solve Question Modes:**
+  - Integrated simultaneous multi-capsule checking (`checkAllCapsules: true`) in both **Exam Mode** (`runExamModeStep`) and **Solve Question Mode** (`handleSQ`).
+  - Evaluates all uploaded Capsule documents in parallel and fairly apportions context quotas across all capsules at the same time so no knowledge file is starved, ignored, or checked sequentially one by one.
+  - Anonymized Capsule checking messages: During scanning and checking, the extension displays clean status indicators (`Checking Capsules…` and `📚 Checking Capsules…`) without revealing or printing specific individual file names (such as `Part_03_Units_05_and_06.md`).
+  - Instructs the AI model to cross-reference facts across all Capsule materials simultaneously to choose the single verified correct answer.
 - **Enhanced Exam Mode Option Matching:**
   - In `executeExamClicker`, answers are cleaned of markdown lists, backticks, and code tokens to ensure maximum string similarity and selector matching against webpage options (radio buttons, checkboxes, and clickable divs).
 
