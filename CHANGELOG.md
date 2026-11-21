@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.19.10] - 2026-11-21
+
+### Fixed & Enhanced
+- **Settings Save Button & Base URL Update:**
+  - Fixed a `ReferenceError` during settings save where `selectedProvider` was accessed prior to initialization, which caused the Save Settings button to fail silently and prevent saving updated Base URLs.
+  - Initialized `selectedProvider` at the top of the save handler and added try/catch error handling to ensure user settings and background sync always save reliably.
+  - Automatically pins the model to `local-ai` when saving Noora AI configurations.
+- **Eliminated `@@CODEBLOCK0@@` Token Leak in AI Answers:**
+  - Fixed a bug in `utils.js` (`parseMarkdown`) where placeholder tokens `@@CODEBLOCK0@@` failed to expand into formatted code blocks whenever they were embedded inside bullet lists or bold markdown styling (`- **...**`).
+  - Added full post-processing replacement across output HTML so that all code block tokens render clean, styled code containers.
+  - Sanitized answers in Question Solving (`handleSQ`) and Exam Mode (`runExamModeStep`) by stripping residual backticks, code fences, and tokens before presentation.
+- **Capsule Knowledge Base Integration in Exam & Solve Question Modes:**
+  - Integrated `getCapsuleReferenceData` into both **Exam Mode** (`runExamModeStep`) and **Solve Question Mode** (`handleSQ`).
+  - The extension now actively scans the user's uploaded Capsule notes/materials for verified answers and relevant facts based on question keywords.
+  - Injects high-priority instructions directing the AI model to align strictly with the Capsule reference material when answering.
+  - Surfaces active Capsule sources in chat responses and dynamically updates the in-page exam banner (`Checking Capsule (<filename>)`).
+- **Enhanced Exam Mode Option Matching:**
+  - In `executeExamClicker`, answers are cleaned of markdown lists, backticks, and code tokens to ensure maximum string similarity and selector matching against webpage options (radio buttons, checkboxes, and clickable divs).
+
+---
+
 ## [2.19.9] - 2026-11-20
 
 ### Fixed & Enhanced

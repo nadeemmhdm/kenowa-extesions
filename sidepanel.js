@@ -1665,37 +1665,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     if (saveSettingsBtn) saveSettingsBtn.addEventListener('click', async () => {
-        if (providerInput) localStorage.setItem('kenowa_provider', providerInput.value);
-        if (keyInput) localStorage.setItem('kenowa_api_key', keyInput.value);
-        if (openRouterKeyInput) localStorage.setItem('kenowa_openrouter_key', openRouterKeyInput.value);
-        if (groqKeyInput) localStorage.setItem('kenowa_groq_key', groqKeyInput.value);
-        if (mistralKeyInput) localStorage.setItem('kenowa_mistral_key', mistralKeyInput.value);
-        if (cloudflareKeyInput) localStorage.setItem('kenowa_cloudflare_key', cloudflareKeyInput.value);
-        if (cloudflareAccountInput) localStorage.setItem('kenowa_cloudflare_account_id', cloudflareAccountInput.value.trim());
-        if (cloudflareGatewayInput) localStorage.setItem('kenowa_cloudflare_gateway_id', cloudflareGatewayInput.value.trim() || 'default');
-        if (cloudflareTokenInput) localStorage.setItem('kenowa_cloudflare_gateway_token', cloudflareTokenInput.value.trim());
-        localStorage.setItem('kenowa_auto_fallback', fallbackEnabledInput?.checked === false ? 'false' : 'true');
-        localStorage.setItem('kenowa_suggestions_enabled', suggestionsEnabledInput?.checked === false ? 'false' : 'true');
-        localStorage.setItem('kenowa_fallback_order', fallbackOrderInput?.value || getFallbackOrder().join(','));
-        if (ollamaLocalKeyInput) localStorage.setItem('kenowa_ollama_local_key', ollamaLocalKeyInput.value);
-        if (ollamaCloudKeyInput) localStorage.setItem('kenowa_ollama_key', ollamaCloudKeyInput.value);
-        if (ollamaUrlInput) localStorage.setItem('kenowa_ollama_url', (ollamaUrlInput.value.trim() || 'http://localhost:11434').replace(/\/+$/, ''));
-        if (nooraKeyInput) localStorage.setItem('kenowa_noora_key', nooraKeyInput.value.trim());
-        if (nooraUrlInput) {
-            const raw = nooraUrlInput.value.trim().replace(/\/+$/, '');
-            const normalized = raw ? (raw.startsWith('http://') || raw.startsWith('https://') ? raw : `http://${raw}`) : 'http://10.30.197.9:8080/v1';
-            localStorage.setItem('kenowa_noora_url', normalized);
-            if (selectedProvider === 'noora') {
-                persistSelectedModel('noora', 'local-ai');
+        try {
+            const selectedProvider = providerInput?.value || 'gemini';
+            localStorage.setItem('kenowa_provider', selectedProvider);
+            if (keyInput) localStorage.setItem('kenowa_api_key', keyInput.value);
+            if (openRouterKeyInput) localStorage.setItem('kenowa_openrouter_key', openRouterKeyInput.value);
+            if (groqKeyInput) localStorage.setItem('kenowa_groq_key', groqKeyInput.value);
+            if (mistralKeyInput) localStorage.setItem('kenowa_mistral_key', mistralKeyInput.value);
+            if (cloudflareKeyInput) localStorage.setItem('kenowa_cloudflare_key', cloudflareKeyInput.value);
+            if (cloudflareAccountInput) localStorage.setItem('kenowa_cloudflare_account_id', cloudflareAccountInput.value.trim());
+            if (cloudflareGatewayInput) localStorage.setItem('kenowa_cloudflare_gateway_id', cloudflareGatewayInput.value.trim() || 'default');
+            if (cloudflareTokenInput) localStorage.setItem('kenowa_cloudflare_gateway_token', cloudflareTokenInput.value.trim());
+            localStorage.setItem('kenowa_auto_fallback', fallbackEnabledInput?.checked === false ? 'false' : 'true');
+            localStorage.setItem('kenowa_suggestions_enabled', suggestionsEnabledInput?.checked === false ? 'false' : 'true');
+            localStorage.setItem('kenowa_fallback_order', fallbackOrderInput?.value || getFallbackOrder().join(','));
+            if (ollamaLocalKeyInput) localStorage.setItem('kenowa_ollama_local_key', ollamaLocalKeyInput.value);
+            if (ollamaCloudKeyInput) localStorage.setItem('kenowa_ollama_key', ollamaCloudKeyInput.value);
+            if (ollamaUrlInput) localStorage.setItem('kenowa_ollama_url', (ollamaUrlInput.value.trim() || 'http://localhost:11434').replace(/\/+$/, ''));
+            if (nooraKeyInput) localStorage.setItem('kenowa_noora_key', nooraKeyInput.value.trim());
+            if (nooraUrlInput) {
+                const raw = nooraUrlInput.value.trim().replace(/\/+$/, '');
+                const normalized = raw ? (raw.startsWith('http://') || raw.startsWith('https://') ? raw : `http://${raw}`) : 'http://10.30.197.9:8080/v1';
+                localStorage.setItem('kenowa_noora_url', normalized);
+                if (selectedProvider === 'noora') {
+                    persistSelectedModel('noora', 'local-ai');
+                }
             }
+            if (modelInput) {
+                const chosenModel = selectedProvider === 'noora' ? 'local-ai' : (modelInput.value || defaultModelForProvider(selectedProvider));
+                persistSelectedModel(selectedProvider, chosenModel);
+            }
+            if (personaSelector) localStorage.setItem('kenowa_persona', personaSelector.value);
+            try { await syncProviderConfigToBackground(); }
+            catch (error) { showToast(`Saved locally, but background sync failed: ${error.message}`, 'error'); }
+            if (settingsModal) { settingsModal.classList.add('hidden'); document.body.classList.remove('modal-open'); }
+            showToast('Settings saved successfully', 'success');
+        } catch (err) {
+            console.error('Error saving settings:', err);
+            showToast(`Could not save settings: ${err.message}`, 'error');
         }
-        const selectedProvider = providerInput?.value || 'gemini';
-        if (modelInput) persistSelectedModel(selectedProvider, modelInput.value);
-        if (personaSelector) localStorage.setItem('kenowa_persona', personaSelector.value);
-        try { await syncProviderConfigToBackground(); }
-        catch (error) { showToast(`Could not sync local model settings: ${error.message}`, 'error'); return; }
-        if (settingsModal) { settingsModal.classList.add('hidden'); document.body.classList.remove('modal-open'); }
-        showToast('Settings saved successfully', 'success');
     });
 
     // CSP-safe key-visibility toggles (replaces inline onclick)
@@ -2757,11 +2765,20 @@ async function handleSQ() {
         if(extraction?.[0]?.result){
             const pageLimit = isLocalAI ? 2400 : 12000;
             const pageText = extraction[0].result.substring(0, pageLimit);
-            const prompt=`You are an expert exam-answering assistant. Below is text from an online quiz/exam question.
 
+            // Check added Capsule knowledge base for relevant facts & answer verification
+            const capsuleLimit = isLocalAI ? 1200 : 8000;
+            const { context: capsuleContext, sources: capsuleSources } = getCapsuleReferenceData(pageText, capsuleLimit);
+            let capsuleSection = '';
+            if (capsuleContext && capsuleContext.trim()) {
+                capsuleSection = `\n\n${capsuleContext}\n\nIMPORTANT: The above CAPSULE REFERENCE MATERIAL contains verified course notes/facts. If any question relates to the Capsule material, strictly prioritize and choose the answer matching the Capsule reference.\n`;
+            }
+
+            const prompt=`You are an expert exam-answering assistant. Below is text from an online quiz/exam question.
+${capsuleSection}
 TASK:
 1. Identify the multiple-choice or multi-select question and its options.
-2. Pick the single best correct answer for each question.
+2. Pick the single best correct answer for each question. Verify facts using Capsule Reference Material if provided.
 3. Return ONLY a valid JSON array of exact answer texts, copied word-for-word from the text.
 4. Include NOTHING else — no explanations, numbers, or commentary.
 5. If the page has no answerable questions, return: []
@@ -2787,14 +2804,23 @@ ${pageText}`;
                     parsedAnswers = [aiRaw.trim()];
                 }
 
+                // Clean answers to prevent @@CODEBLOCK0@@ leaks
+                const cleanAnswers = parsedAnswers.map(ans => {
+                    let s = String(ans || '').trim();
+                    s = s.replace(/^```[^\n]*\n([\s\S]*?)\n?```$/g, '$1').trim();
+                    s = s.replace(/^`+|`+$/g, '').trim();
+                    s = s.replace(/@@CODEBLOCK\d+@@/g, '').trim();
+                    return s;
+                }).filter(Boolean);
+
                 let answerDisplay = '### 🎯 Correct Answer\n\n';
-                if (parsedAnswers.length > 0) {
-                    answerDisplay += parsedAnswers.map(ans => `- **${ans}**`).join('\n');
+                if (cleanAnswers.length > 0) {
+                    answerDisplay += cleanAnswers.map(ans => `- **${escapeHtml(ans)}**`).join('\n');
                 } else {
-                    answerDisplay += `**${aiRaw}**`;
+                    answerDisplay += `**${escapeHtml(aiRaw)}**`;
                 }
 
-                appendMessage('ai', answerDisplay, [], true, false, currentChatId, capsuleSources);
+                appendMessage('ai', answerDisplay, [], true, false, currentChatId, capsuleSources || []);
                 
                 // Save to QA training cache
                 const questionForHash = pageText.substring(0, 2000);
@@ -3001,7 +3027,7 @@ async function apiGenerateText(prompt) {
     const isOllamaCloud = provider === 'ollama_cloud' || provider === 'ollama';
     const isNoora = provider === 'noora';
     let capsuleContext = '';
-    if (!prompt.includes('CAPSULE REFERENCE CONTEXT') && !prompt.includes('CAPSULE DATA:')) {
+    if (!prompt.includes('CAPSULE REFERENCE') && !prompt.includes('CAPSULE DATA:')) {
         const capsuleMax = (isNoora || isOllamaLocal) ? 500 : 18000;
         if ((!isNoora && !isOllamaLocal) || prompt.length < 2000) {
             capsuleContext = getCapsuleReferenceContext(prompt, capsuleMax);
@@ -3404,11 +3430,24 @@ async function runExamModeStep() {
             ? extractedQuestionText.substring(0, examLimit)
             : pageText.replace(/\n\s*\n\s*\n+/g, '\n\n').trim().substring(0, examLimit);
 
-        const prompt = `You are an expert exam-answering assistant. Below is text from an online quiz/exam question.
+        // Check user's Capsule reference notes for verified facts
+        const capsuleLimit = isLocalAI ? 1200 : 8000;
+        const { context: capsuleContext, sources: capsuleSources } = getCapsuleReferenceData(examInputText, capsuleLimit);
+        let capsuleSection = '';
+        if (capsuleContext && capsuleContext.trim()) {
+            capsuleSection = `\n\n${capsuleContext}\n\nIMPORTANT: The above CAPSULE REFERENCE MATERIAL contains verified notes/facts. If any question relates to the Capsule material, strictly prioritize and select the answer matching the Capsule reference.\n`;
+            if (capsuleSources && capsuleSources.length > 0) {
+                const sourceNames = capsuleSources.map(s => s.name).slice(0, 2).join(', ');
+                updateExamBannerStatus(examModeTabId, `Checking Capsule (${sourceNames})…`);
+                examAppendMessage(`📚 Checking Capsule: ${sourceNames}`);
+            }
+        }
 
+        const prompt = `You are an expert exam-answering assistant. Below is text from an online quiz/exam question.
+${capsuleSection}
 TASK:
 1. Find every visible multiple-choice or multi-select question.
-2. Pick the single best correct answer for each question.
+2. Pick the single best correct answer for each question. Verify facts using Capsule Reference Material if provided.
 3. Return ONLY a valid JSON array of exact answer texts, copied word-for-word from the page.
 4. Include NOTHING else — no explanations, numbers, or commentary.
 5. If the page has no answerable questions (result page, nav page), return: []
@@ -3438,15 +3477,29 @@ Respond with ONLY a JSON array, e.g.: ["True","Paris","All of the above"]`;
             lastExamAnswer = aiRaw;
             // ── Save to QA training cache (fire-and-forget) ───
             saveQACache(questionForHash, aiRaw, 70);
-            let formattedAns = aiRaw;
+
+            // Clean answers to prevent @@CODEBLOCK0@@ leaks
+            let parsedAnswers = [];
             try {
-                const parsed = JSON.parse(aiRaw);
-                if (Array.isArray(parsed)) formattedAns = parsed.join(', ');
-            } catch(_) {}
-            const preview = formattedAns.length > 120 ? formattedAns.substring(0, 120) + '…' : formattedAns;
+                const m = aiRaw.match(/\[[\s\S]*?\]/);
+                parsedAnswers = m ? JSON.parse(m[0]) : [aiRaw.trim()];
+            } catch(_) {
+                parsedAnswers = [aiRaw.trim()];
+            }
+            const cleanAnswers = parsedAnswers.map(ans => {
+                let s = String(ans || '').trim();
+                s = s.replace(/^```[^\n]*\n([\s\S]*?)\n?```$/g, '$1').trim();
+                s = s.replace(/^`+|`+$/g, '').trim();
+                s = s.replace(/@@CODEBLOCK\d+@@/g, '').trim();
+                return s;
+            }).filter(Boolean);
+
+            const displayAnswers = cleanAnswers.length > 0 ? cleanAnswers.join(', ') : aiRaw.trim();
+            const preview = displayAnswers.length > 120 ? displayAnswers.substring(0, 120) + '…' : displayAnswers;
             examAppendMessage(`✅ Answer: ${preview}`);
             updateExamBannerStatus(examModeTabId, 'Selecting…');
-            await executeExamClicker(examModeTabId, aiRaw, shouldSubmit, true, hasFinishBtn);
+            const answerForClicker = cleanAnswers.length > 0 ? JSON.stringify(cleanAnswers) : aiRaw;
+            await executeExamClicker(examModeTabId, answerForClicker, shouldSubmit, true, hasFinishBtn);
             if (shouldSubmit) { examAppendMessage('⏱ Time up. Final submit sent.'); if (isExamMode) toggleExamMode(); return; }
         }
         if (isExamMode) examModeTimeout = setTimeout(runExamModeStep, 4000);
@@ -3495,7 +3548,14 @@ async function executeExamClicker(tabId, answerText, shouldSubmit, isDelayEnable
                 const m = answerText.match(/\[[\s\S]*?\]/);
                 aiAnswers = m ? JSON.parse(m[0]) : [answerText];
             } catch(_) { aiAnswers = [answerText]; }
-            aiAnswers = aiAnswers.filter(a => typeof a === 'string' && a.trim().length > 0);
+            aiAnswers = aiAnswers.map(ans => {
+                let s = String(ans || '').trim();
+                s = s.replace(/@@CODEBLOCK\d+@@/g, '').trim();
+                s = s.replace(/^```[^\n]*\n([\s\S]*?)\n?```$/g, '$1').trim();
+                s = s.replace(/^`+|`+$/g, '').trim();
+                s = s.replace(/^[\*\-_•\d+\.]+\s*/, '').trim();
+                return s;
+            }).filter(a => typeof a === 'string' && a.trim().length > 0);
 
             // ── Fire all events frameworks need ──────────────
             function fire(el) {

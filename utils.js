@@ -137,7 +137,12 @@ function parseMarkdown(text) {
         blocks.push(inline(line));
     }
     let html = blocks.join('<br>');
-    inlineCodeBlocks.forEach((code, index) => { html = html.replaceAll(`@@INLINECODE${index}@@`, `<code class="inline-code">${escapeHtml(code)}</code>`); });
+    codeBlocks.forEach((block, index) => {
+        html = html.replaceAll(`@@CODEBLOCK${index}@@`, renderCodeBlock(block));
+    });
+    inlineCodeBlocks.forEach((code, index) => {
+        html = html.replaceAll(`@@INLINECODE${index}@@`, `<code class="inline-code">${escapeHtml(code)}</code>`);
+    });
     return html;
 }
 
