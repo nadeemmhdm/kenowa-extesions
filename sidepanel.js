@@ -71,6 +71,8 @@ function getFallbackOrder() {
         .split(',').map(v => v.trim()).filter((v, i, a) => v && a.indexOf(v) === i);
 }
 function isAutoFallbackEnabled() { return localStorage.getItem('kenowa_auto_fallback') !== 'false'; }
+function isWebSearchEnabled() { return localStorage.getItem('kenowa_web_search_enabled') !== 'false'; }
+function getWebSearchMode() { return localStorage.getItem('kenowa_web_search_mode') || 'auto'; }
 function isQuotaOrAuthError(error) {
     const msg = String(error?.message || error || '').toLowerCase();
     return [401, 403, 408, 409, 429, 500, 502, 503, 529].some(code => msg.includes(`http ${code}`) || msg.includes(`error ${code}`) || msg.includes(`status ${code}`))
@@ -158,11 +160,10 @@ function getOpenAIMessageText(data) {
 }
 function getOpenAIRequestOptions(provider, model) {
     if (provider === 'noora') {
-        // Noora LAN server has a 2048 token context window; cap generation to 512 tokens to reserve prompt space
-        return { max_tokens: 512, temperature: 0.3 };
+        return { max_tokens: 4096, temperature: 0.3 };
     }
     if (provider !== 'groq') return {};
-    const options = { temperature: 1, max_completion_tokens: 2048, top_p: 1, stop: null };
+    const options = { temperature: 1, max_completion_tokens: 8192, top_p: 1, stop: null };
     if (String(model).startsWith('openai/gpt-oss')) options.reasoning_effort = 'medium';
     return options;
 }
@@ -318,7 +319,50 @@ let currentTabChatMap      = {};
 let examModeStartTime      = null;
 let lastExamPageSignature  = "";
 let lastExamAnswer         = "";
-let examNoQuestionCount    = 0;   // consecutive "no questions" hits — auto-off after 2
+let lastExamSelectionSucceeded = false;
+let examNoQuestionCount    = 0;
+
+let currentExamState = {
+    step: 'IDLE',
+    questionId: null,
+    questionIndex: 0,
+    extractedQuestions: [],
+    validatedAnswers: [],
+    answeredQuestionIds: new Set(),
+    capsuleCheckCache: new Map(),
+    webSearchCache: new Map(),
+    notifiedQuestionIds: new Set(),
+    fallbackNotifiedQuestionIds: new Set(),
+    webSearchNotifiedQuestionIds: new Set(),
+    webSourcesNotifiedQuestionIds: new Set(),
+    retryCount: 0,
+    isProcessing: false,
+    lastActionTime: 0
+};
+
+function resetExamState() {
+    currentExamState = {
+        step: 'IDLE',
+        questionId: null,
+        questionIndex: 0,
+        extractedQuestions: [],
+        validatedAnswers: [],
+        answeredQuestionIds: new Set(),
+        capsuleCheckCache: new Map(),
+        webSearchCache: new Map(),
+        notifiedQuestionIds: new Set(),
+        fallbackNotifiedQuestionIds: new Set(),
+        webSearchNotifiedQuestionIds: new Set(),
+        webSourcesNotifiedQuestionIds: new Set(),
+        retryCount: 0,
+        isProcessing: false,
+        lastActionTime: 0
+    };
+    lastExamPageSignature = "";
+    lastExamAnswer = "";
+    lastExamSelectionSucceeded = false;
+    examNoQuestionCount = 0;
+}
 let examCountdownInterval  = null;
 let typingMessageTimer     = null;
 let blockedWebsites        = [];
@@ -583,7 +627,7 @@ function loadChatSilent(id) {
     if (hasMsg) {
         chats[id].messages.forEach(m => {
             try {
-                appendMessage(m.role, m.content, m.images || [], false, true, null, m.sources);
+                appendMessage(m.role, m.content, m.images || [], false, true, null, m.sources, m.confidence);
             } catch (e) {
                 console.error("Error rendering message during reload:", e);
             }
@@ -721,7 +765,20 @@ const CAPSULE_STORAGE_KEY = 'kenowa_capsules_v1';
 const CAPSULE_FOLDER_STORAGE_KEY = 'kenowa_capsule_folder_v1';
 const CAPSULE_MAX_FILES = 5;
 const CAPSULE_MAX_FILE_BYTES = 180 * 1024;
-const CAPSULE_MAX_TOTAL_CHARS = 26000;
+const CAPSULE_MAX_TOTAL_CHARS = 8500;
+
+// ── In-memory caches for Capsule RAG performance ──────────────
+const capsuleChunkCache = new Map(); // cacheKey -> pre-processed chunks
+const capsuleQueryCache = new Map(); // queryKey -> { context, sources }
+const MAX_QUERY_CACHE_ENTRIES = 50;
+
+function clearCapsuleCaches() {
+    capsuleChunkCache.clear();
+    capsuleQueryCache.clear();
+    if (typeof clearGlobalCapsuleCaches === 'function') {
+        clearGlobalCapsuleCaches();
+    }
+}
 
 function getCapsules() {
     try {
@@ -733,9 +790,13 @@ function getCapsules() {
 function areSuggestionsEnabled() { return localStorage.getItem('kenowa_suggestions_enabled') !== 'false'; }
 
 function saveCapsules(capsules) {
+    clearCapsuleCaches();
     const bounded = capsules.slice(0, CAPSULE_MAX_FILES);
     localStorage.setItem(CAPSULE_STORAGE_KEY, JSON.stringify(bounded));
     chrome.storage.local.set({ kenowaCapsules: bounded }).catch(() => {});
+    if (typeof indexCorpus === 'function') {
+        try { indexCorpus(bounded); } catch (_) {}
+    }
     if (typeof syncProviderConfigToBackground === 'function') syncProviderConfigToBackground().catch(() => {});
     return bounded;
 }
@@ -787,15 +848,15 @@ function renderCapsules() {
 
 async function importCapsuleFiles(fileList) {
     const input = document.getElementById('capsule-file-input');
-    const files = Array.from(fileList || []).filter(file => /\.md$/i.test(file.name))
+    const files = Array.from(fileList || []).filter(file => /\.(md|markdown|txt)$/i.test(file.name))
         .sort((a, b) => String(a.webkitRelativePath || a.name).localeCompare(String(b.webkitRelativePath || b.name)));
     if (!files.length) {
-        showToast('Choose a folder containing at least one .md file.', 'error');
+        showToast('Choose a folder containing at least one .md or .txt file.', 'error');
         if (input) input.value = '';
         return;
     }
     const selected = files.slice(0, CAPSULE_MAX_FILES);
-    if (files.length > CAPSULE_MAX_FILES) showToast(`Only the first ${CAPSULE_MAX_FILES} Markdown files were imported.`, 'info');
+    if (files.length > CAPSULE_MAX_FILES) showToast(`Only the first ${CAPSULE_MAX_FILES} documents were imported.`, 'info');
     const folderName = String(selected[0].webkitRelativePath || '').split('/')[0] || 'Selected folder';
     const capsules = [];
     for (const file of selected) {
@@ -811,162 +872,23 @@ async function importCapsuleFiles(fileList) {
     if (capsules.length) {
         localStorage.setItem(CAPSULE_FOLDER_STORAGE_KEY, folderName);
         saveCapsules(capsules);
-        showToast(`Capsule folder saved · ${capsules.length}/${CAPSULE_MAX_FILES} files`, 'success');
+        // Pre-warm chunk cache for instant first query
+        for (const c of capsules) {
+            chunkMarkdownDocument(c.content, c.name);
+        }
+        showToast(`Capsule folder saved & indexed · ${capsules.length}/${CAPSULE_MAX_FILES} files`, 'success');
     }
     renderCapsules();
     if (input) input.value = '';
 }
 
-const CAPSULE_STOPWORDS = new Set([
-    'the', 'and', 'for', 'that', 'this', 'with', 'you', 'not', 'are', 'from',
-    'have', 'was', 'but', 'all', 'can', 'your', 'has', 'more', 'one', 'will',
-    'would', 'there', 'what', 'when', 'which', 'who', 'how', 'why', 'where',
-    'about', 'out', 'into', 'some', 'could', 'them', 'other', 'than', 'then',
-    'now', 'only', 'just', 'over', 'also', 'after', 'use', 'two', 'our',
-    'work', 'first', 'well', 'way', 'even', 'new', 'want', 'because', 'any',
-    'these', 'give', 'tell', 'show', 'make', 'help', 'explain', 'write', 'create',
-    'summarize', 'find', 'does', 'please', 'code', 'answer', 'question', 'text',
-    'details', 'information', 'describe', 'list', 'provide', 'using', 'based'
-]);
-
 function getCapsuleReferenceData(query, maxChars = CAPSULE_MAX_TOTAL_CHARS, options = {}) {
     const capsules = getCapsules();
-    if (!capsules.length) return { context: '', sources: [] };
-    const checkAllCapsules = options?.checkAllCapsules === true;
-    const queryStr = String(query || '').toLowerCase();
-    const rawTokens = queryStr.match(/[\p{L}\p{N}]{3,}/gu) || [];
-    const terms = new Set(rawTokens.filter(t => !CAPSULE_STOPWORDS.has(t)));
-
-    // Check if query directly references any capsule file name
-    const matchingCapsulesByName = capsules.filter(c => {
-        const base = c.name.toLowerCase().replace(/\.[^.]+$/, '');
-        return base.length >= 3 && queryStr.includes(base);
-    });
-
-    // If query has no substantive keywords and doesn't mention any capsule by name, do not attach reference data (unless checkAllCapsules is enabled)
-    if (!terms.size && !matchingCapsulesByName.length && !checkAllCapsules) {
-        return { context: '', sources: [] };
+    if (!capsules.length) return { context: '', sources: [], hasSufficientEvidence: false };
+    if (typeof retrieveCapsuleContext === 'function') {
+        return retrieveCapsuleContext(query, capsules, { maxChars, ...options });
     }
-
-    // Evaluate all capsules simultaneously in a single pass
-    const capsulePassagesMap = new Map();
-    for (const capsule of capsules) {
-        const isNameMatch = matchingCapsulesByName.some(m => m.name === capsule.name);
-        const blocks = capsule.content.split(/\n\s*\n/).flatMap(block => {
-            const trimmed = block.trim();
-            if (trimmed.length <= 1800) return trimmed ? [trimmed] : [];
-            return trimmed.match(/[\s\S]{1,1500}(?:\s|$)/g) || [trimmed.slice(0, 1500)];
-        });
-
-        const scoredBlocks = [];
-        blocks.forEach((content, index) => {
-            const lower = content.toLowerCase();
-            let score = 0;
-            for (const term of terms) {
-                if (lower.includes(term)) {
-                    score += term.length > 6 ? 2.5 : 1.5;
-                }
-            }
-            if (isNameMatch) score += 3.0;
-            if (content.length < 80 && terms.size) score *= 0.5;
-            if (score > 0 || (checkAllCapsules && index === 0)) {
-                scoredBlocks.push({ name: capsule.name, content, index, score: score > 0 ? score : 0.5 });
-            }
-        });
-
-        scoredBlocks.sort((a, b) => b.score - a.score || a.index - b.index);
-        if (scoredBlocks.length > 0) {
-            capsulePassagesMap.set(capsule.name, scoredBlocks);
-        }
-    }
-
-    if (!capsulePassagesMap.size) return { context: '', sources: [] };
-
-    const chosen = [];
-    const sourceMap = new Map();
-    let used = 0;
-
-    if (checkAllCapsules && capsulePassagesMap.size > 1) {
-        // Guarantee every capsule gets fair allocation simultaneously
-        const perCapsuleQuota = Math.max(250, Math.floor(maxChars / capsulePassagesMap.size));
-        for (const [capsuleName, list] of capsulePassagesMap.entries()) {
-            let capUsed = 0;
-            for (const passage of list) {
-                const block = `[Capsule Reference]\n${passage.content}`;
-                if (capUsed + block.length > perCapsuleQuota || used + block.length > maxChars) {
-                    if (capUsed === 0 && used + block.length <= maxChars) {
-                        chosen.push(block);
-                        used += block.length;
-                        sourceMap.set(passage.name, {
-                            name: passage.name,
-                            snippet: passage.content.slice(0, 260).trim(),
-                            content: passage.content,
-                            score: passage.score
-                        });
-                    }
-                    break;
-                }
-                chosen.push(block);
-                used += block.length;
-                capUsed += block.length;
-                sourceMap.set(passage.name, {
-                    name: passage.name,
-                    snippet: passage.content.slice(0, 260).trim(),
-                    content: passage.content,
-                    score: passage.score
-                });
-            }
-        }
-        // Second pass: fill remaining budget with best remaining passages from any capsule
-        const remainingPassages = [];
-        for (const list of capsulePassagesMap.values()) {
-            for (const passage of list) {
-                const block = `[Capsule Reference]\n${passage.content}`;
-                if (!chosen.includes(block)) {
-                    remainingPassages.push(passage);
-                }
-            }
-        }
-        remainingPassages.sort((a, b) => b.score - a.score);
-        for (const passage of remainingPassages) {
-            const block = `[Capsule Reference]\n${passage.content}`;
-            if (used + block.length > maxChars) continue;
-            chosen.push(block);
-            used += block.length;
-            if (used >= maxChars * 0.95) break;
-        }
-    } else {
-        const allPassages = [];
-        for (const list of capsulePassagesMap.values()) {
-            allPassages.push(...list);
-        }
-        allPassages.sort((a, b) => b.score - a.score || a.index - b.index);
-        for (const passage of allPassages) {
-            if (passage.score < 1.0 && !checkAllCapsules) continue;
-            const block = `[Capsule Reference]\n${passage.content}`;
-            if (used + block.length > maxChars) continue;
-            chosen.push(block);
-            used += block.length;
-
-            if (!sourceMap.has(passage.name)) {
-                sourceMap.set(passage.name, {
-                    name: passage.name,
-                    snippet: passage.content.slice(0, 260).trim(),
-                    content: passage.content,
-                    score: passage.score
-                });
-            } else {
-                const existing = sourceMap.get(passage.name);
-                existing.content += '\n' + passage.content;
-                if (passage.score > existing.score) existing.score = passage.score;
-            }
-            if (used >= maxChars * 0.9) break;
-        }
-    }
-
-    if (!chosen.length) return { context: '', sources: [] };
-    const context = `\n\nCAPSULE REFERENCE MATERIAL (Verified facts from your saved notes; cross-referenced across all Capsules simultaneously. Use these relevant facts to verify and select the correct answer):\n${chosen.join('\n\n---\n\n')}\n\n`;
-    return { context, sources: Array.from(sourceMap.values()) };
+    return { context: '', sources: [], hasSufficientEvidence: false };
 }
 
 function filterActuallyUsedSources(candidateSources, aiAnswer, queryText = '') {
@@ -987,7 +909,10 @@ function filterActuallyUsedSources(candidateSources, aiAnswer, queryText = '') {
         'provided documents do not',
         'provided text does not',
         'reference material does not',
-        'as an ai, i cannot find this in your'
+        'as an ai, i cannot find this in your',
+        "couldn't find enough information",
+        "could not find enough information",
+        "not enough information in the selected capsule"
     ];
     if (negativeIndicators.some(phrase => answer.includes(phrase))) {
         return [];
@@ -1003,16 +928,21 @@ function filterActuallyUsedSources(candidateSources, aiAnswer, queryText = '') {
     const verified = [];
 
     for (const src of candidateSources) {
+        // Web sources that already passed calculateResultRelevance >= 40:
+        if (src.url) {
+            verified.push({ ...src });
+            continue;
+        }
+
         // 1. Direct document name reference in the AI answer
         const baseName = String(src.name || '').toLowerCase();
         const nameWithoutExt = baseName.replace(/\.[^.]+$/, '');
         if (nameWithoutExt.length >= 3 && answer.includes(nameWithoutExt)) {
-            verified.push({ name: src.name, snippet: src.snippet });
+            verified.push({ ...src });
             continue;
         }
 
         // 2. Substantive overlap check:
-        // Extract words from the candidate source passage that were NOT in the user's query
         const sourceText = String((src.content || '') + ' ' + (src.snippet || '')).toLowerCase();
         const rawSourceWords = sourceText.match(/[\p{L}\p{N}]{4,}/gu) || [];
         
@@ -1045,9 +975,8 @@ function filterActuallyUsedSources(candidateSources, aiAnswer, queryText = '') {
             if (hasInformativePhrase) break;
         }
 
-        // Only display if the source actually provided substantive useful information used in the answer
         if (hasInformativePhrase || overlapCount >= 3 || (overlapCount >= 2 && distinctiveSourceTerms.size <= 8)) {
-            verified.push({ name: src.name, snippet: src.snippet });
+            verified.push({ ...src });
         }
     }
 
@@ -1058,23 +987,41 @@ function getCapsuleReferenceContext(query, maxChars = CAPSULE_MAX_TOTAL_CHARS, o
     return getCapsuleReferenceData(query, maxChars, options).context;
 }
 
-function renderSourcesSection(parentMsgDiv, sources) {
-    if (!parentMsgDiv || !Array.isArray(sources) || !sources.length) return;
-    if (parentMsgDiv.querySelector('.capsule-sources-container')) return;
+function renderSourcesSection(parentMsgDiv, sources, showEmptyNote = false) {
+    if (!parentMsgDiv) return;
+    if (parentMsgDiv.querySelector('.capsule-sources-container') || parentMsgDiv.querySelector('.no-sources-note')) return;
+
+    if (!Array.isArray(sources) || !sources.length) {
+        if (showEmptyNote) {
+            const note = document.createElement('div');
+            note.className = 'no-sources-note';
+            note.textContent = 'ℹ️ No relevant web sources found.';
+            parentMsgDiv.appendChild(note);
+        }
+        return;
+    }
 
     const container = document.createElement('div');
     container.className = 'capsule-sources-container';
+
+    const isAllWeb = sources.every(s => Boolean(s.url));
+    const isAllCapsule = sources.every(s => !s.url);
+    const titleText = isAllWeb ? `Web Sources (${sources.length})` : (isAllCapsule ? `Capsule Sources (${sources.length})` : `Sources (${sources.length})`);
 
     const toggleBtn = document.createElement('button');
     toggleBtn.className = 'capsule-sources-toggle';
     toggleBtn.type = 'button';
     toggleBtn.setAttribute('aria-expanded', 'false');
-    toggleBtn.title = 'Toggle retrieved Capsule sources';
+    toggleBtn.title = 'Click to expand or collapse sources';
     toggleBtn.innerHTML = `
         <span class="capsule-sources-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            ${isAllWeb 
+                ? '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>'
+                : '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>'
+            }
         </span>
-        <span class="capsule-sources-title">Sources (${sources.length})</span>
+        <span class="capsule-sources-title">${titleText}</span>
+        <span class="source-action-label">[Expand]</span>
         <span class="capsule-sources-chevron">
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
         </span>
@@ -1083,20 +1030,49 @@ function renderSourcesSection(parentMsgDiv, sources) {
     const bodyDiv = document.createElement('div');
     bodyDiv.className = 'capsule-sources-body hidden';
 
-    sources.forEach(src => {
+    sources.forEach((src, idx) => {
         const item = document.createElement('div');
-        item.className = 'capsule-source-item';
-        const cleanName = escapeHtml(src.name || 'Document');
+        const isWeb = Boolean(src.url);
+        item.className = isWeb ? 'capsule-source-item web-source-item' : 'capsule-source-item';
+
+        const cleanTitle = escapeHtml(src.title || src.name || src.domain || 'Document');
+        let domainStr = src.domain || '';
+        if (!domainStr && src.url) {
+            try { domainStr = new URL(src.url).hostname.replace(/^www\./, ''); } catch (_) {}
+        }
+        const cleanDomain = escapeHtml(domainStr);
         const cleanSnippet = src.snippet ? escapeHtml(src.snippet) : '';
-        item.innerHTML = `
-            <div class="capsule-source-header">
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                <span class="capsule-source-name">${cleanName}</span>
-            </div>
-            ${cleanSnippet ? `<div class="capsule-source-snippet">${cleanSnippet}...</div>` : ''}
-        `;
+        const urlSafe = src.url ? escapeHtml(src.url) : '';
+        const dateStr = src.date ? escapeHtml(src.date) : '';
+        const vStatus = src.verificationStatus;
+        const vBadge = vStatus?.label ? `<span class="web-source-badge ${vStatus.tier || 'standard'}">${escapeHtml(vStatus.label)}</span>` : '';
+
+        if (isWeb) {
+            item.innerHTML = `
+                <div class="web-source-header">
+                    <span class="web-source-index">${idx + 1}.</span>
+                    <a href="${urlSafe}" target="_blank" rel="noopener noreferrer" class="web-source-link" title="${cleanTitle}">${cleanTitle}</a>
+                </div>
+                <div class="web-source-meta">
+                    ${cleanDomain ? `<span class="web-source-domain">${cleanDomain}</span>` : ''}
+                    ${vBadge}
+                    ${dateStr ? `<span class="web-source-date">📅 ${dateStr}</span>` : ''}
+                </div>
+                ${cleanSnippet ? `<div class="capsule-source-snippet">${cleanSnippet}</div>` : ''}
+            `;
+        } else {
+            item.innerHTML = `
+                <div class="capsule-source-header">
+                    <span class="web-source-index">${idx + 1}.</span>
+                    <span class="capsule-source-name">${cleanTitle}</span>
+                </div>
+                ${cleanSnippet ? `<div class="capsule-source-snippet">${cleanSnippet}</div>` : ''}
+            `;
+        }
         bodyDiv.appendChild(item);
     });
+
+    const actionLabel = toggleBtn.querySelector('.source-action-label');
 
     toggleBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1105,10 +1081,12 @@ function renderSourcesSection(parentMsgDiv, sources) {
             bodyDiv.classList.remove('hidden');
             toggleBtn.setAttribute('aria-expanded', 'true');
             toggleBtn.classList.add('expanded');
+            if (actionLabel) actionLabel.textContent = '[Collapse]';
         } else {
             bodyDiv.classList.add('hidden');
             toggleBtn.setAttribute('aria-expanded', 'false');
             toggleBtn.classList.remove('expanded');
+            if (actionLabel) actionLabel.textContent = '[Expand]';
         }
         if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
     });
@@ -1116,6 +1094,46 @@ function renderSourcesSection(parentMsgDiv, sources) {
     container.appendChild(toggleBtn);
     container.appendChild(bodyDiv);
     parentMsgDiv.appendChild(container);
+}
+
+function renderConfidenceCard(parentMsgDiv, conf) {
+    if (!parentMsgDiv || !conf || typeof conf.percentage !== 'number') return;
+    if (parentMsgDiv.querySelector('.kenowa-confidence-card')) return;
+
+    const card = document.createElement('div');
+    const levelClass = conf.levelClass || (conf.level === 'High' ? 'confidence-high' : conf.level === 'Low' ? 'confidence-low' : 'confidence-medium');
+    card.className = `kenowa-confidence-card ${levelClass}`;
+
+    const percent = Math.max(0, Math.min(100, conf.percentage));
+    const level = escapeHtml(conf.level || 'Medium');
+    const source = escapeHtml(conf.evidenceSource || 'AI Knowledge');
+    const explanation = escapeHtml(conf.explanation || '');
+    const count = conf.sourceCount || 0;
+
+    card.innerHTML = `
+        <div class="confidence-header">
+            <span class="confidence-title">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                AI Confidence: <strong>${percent}%</strong>
+            </span>
+            <span class="confidence-pill ${levelClass}">${level}</span>
+        </div>
+        <div class="confidence-bar-track">
+            <div class="confidence-bar-fill ${levelClass}" style="width: ${percent}%;"></div>
+        </div>
+        <div class="confidence-meta">
+            <span><strong>Evidence:</strong> ${source}</span>
+            ${count > 0 ? `<span>• <strong>Sources:</strong> ${count} verified reference${count > 1 ? 's' : ''}</span>` : ''}
+        </div>
+        ${explanation ? `<div class="confidence-explanation">${explanation}</div>` : ''}
+    `;
+
+    const sourcesContainer = parentMsgDiv.querySelector('.capsule-sources-container');
+    if (sourcesContainer) {
+        parentMsgDiv.insertBefore(card, sourcesContainer);
+    } else {
+        parentMsgDiv.appendChild(card);
+    }
 }
 
 async function syncProviderConfigToBackground() {
@@ -1556,6 +1574,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     const fallbackEnabledInput = document.getElementById('settings-auto-fallback-input');
     const suggestionsEnabledInput = document.getElementById('settings-suggestions-input');
     const fallbackOrderInput = document.getElementById('settings-fallback-order-input');
+    const webSearchEnabledInput = document.getElementById('settings-web-search-input');
+    const webSearchModeInput = document.getElementById('settings-web-search-mode-input');
+    const webSearchToggleBtn = document.getElementById('web-search-toggle-btn');
+
+    function updateWebSearchToggleUI() {
+        if (!webSearchToggleBtn) return;
+        const enabled = isWebSearchEnabled();
+        const mode = getWebSearchMode();
+        if (enabled && mode !== 'off') {
+            webSearchToggleBtn.classList.add('active');
+            webSearchToggleBtn.style.color = 'var(--accent, #6366f1)';
+            webSearchToggleBtn.title = `Web Search: ${mode === 'always' ? 'Always' : 'Auto'} (Click to toggle)`;
+        } else {
+            webSearchToggleBtn.classList.remove('active');
+            webSearchToggleBtn.style.color = 'var(--text-muted, #888)';
+            webSearchToggleBtn.title = 'Web Search: Off (Click to enable)';
+        }
+    }
+
+    if (webSearchToggleBtn) {
+        webSearchToggleBtn.addEventListener('click', () => {
+            const next = !isWebSearchEnabled();
+            localStorage.setItem('kenowa_web_search_enabled', next ? 'true' : 'false');
+            if (next && getWebSearchMode() === 'off') {
+                localStorage.setItem('kenowa_web_search_mode', 'auto');
+            }
+            updateWebSearchToggleUI();
+            showToast(`Web Search: ${next ? 'Enabled (Auto)' : 'Disabled'}`, 'info');
+        });
+        updateWebSearchToggleUI();
+    }
     const ollamaLocalKeyInput = document.getElementById('settings-ollama-local-key-input');
     const ollamaCloudKeyInput = document.getElementById('settings-ollama-cloud-key-input');
     const ollamaUrlInput = document.getElementById('settings-ollama-url-input');
@@ -1587,6 +1636,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (fallbackEnabledInput) fallbackEnabledInput.checked = isAutoFallbackEnabled();
         if (suggestionsEnabledInput) suggestionsEnabledInput.checked = areSuggestionsEnabled();
         if (fallbackOrderInput) fallbackOrderInput.value = getFallbackOrder().join(',');
+        if (webSearchEnabledInput) webSearchEnabledInput.checked = isWebSearchEnabled();
+        if (webSearchModeInput) webSearchModeInput.value = getWebSearchMode();
         if (ollamaLocalKeyInput) ollamaLocalKeyInput.value = localStorage.getItem('kenowa_ollama_local_key') || '';
         if (ollamaCloudKeyInput) ollamaCloudKeyInput.value = localStorage.getItem('kenowa_ollama_key') || '';
         if (ollamaUrlInput) ollamaUrlInput.value = localStorage.getItem('kenowa_ollama_url') || 'http://localhost:11434';
@@ -1742,6 +1793,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             localStorage.setItem('kenowa_auto_fallback', fallbackEnabledInput?.checked === false ? 'false' : 'true');
             localStorage.setItem('kenowa_suggestions_enabled', suggestionsEnabledInput?.checked === false ? 'false' : 'true');
             localStorage.setItem('kenowa_fallback_order', fallbackOrderInput?.value || getFallbackOrder().join(','));
+            localStorage.setItem('kenowa_web_search_enabled', webSearchEnabledInput?.checked === false ? 'false' : 'true');
+            localStorage.setItem('kenowa_web_search_mode', webSearchModeInput?.value || 'auto');
+            updateWebSearchToggleUI();
             if (ollamaLocalKeyInput) localStorage.setItem('kenowa_ollama_local_key', ollamaLocalKeyInput.value);
             if (ollamaCloudKeyInput) localStorage.setItem('kenowa_ollama_key', ollamaCloudKeyInput.value);
             if (ollamaUrlInput) localStorage.setItem('kenowa_ollama_url', (ollamaUrlInput.value.trim() || 'http://localhost:11434').replace(/\/+$/, ''));
@@ -1987,7 +2041,7 @@ function publishSelectionResponse(content, chatId, partial = false) {
 }
 
 // ── Message Rendering ──────────────────────────────────────────
-function appendMessage(role,content,images=[],animate=false,isReload=false,targetChatId=null,sources=null) {
+function appendMessage(role,content,images=[],animate=false,isReload=false,targetChatId=null,sources=null,confidence=null) {
     const chatId = targetChatId || currentChatId;
     if(welcomeScreen) welcomeScreen.classList.add('hidden');
     if(role==='ai'&&!isReload) hideTypingIndicator();
@@ -1998,7 +2052,8 @@ function appendMessage(role,content,images=[],animate=false,isReload=false,targe
         msgDiv.appendChild(imgsDiv);
     }
     const textDiv=document.createElement('div');
-    if(role==='ai'&&animate){
+    const hasHtmlBlocks = typeof content === 'string' && (content.includes('<details') || content.includes('<table') || content.includes('@@CODEBLOCK'));
+    if(role==='ai'&&animate&&!hasHtmlBlocks){
         textDiv.className='typewriter-text'; msgDiv.appendChild(textDiv); if(messagesList) messagesList.appendChild(msgDiv);
         if(chatContainer) chatContainer.scrollTop=chatContainer.scrollHeight;
         let i=0;
@@ -2011,8 +2066,9 @@ function appendMessage(role,content,images=[],animate=false,isReload=false,targe
                 const finalHTML=typeof parseMarkdown==='function'?parseMarkdown(content):escapeHtml(content);
                 textDiv.innerHTML=linkify(finalHTML);
                 addActions(msgDiv,content);
+                if(confidence) renderConfidenceCard(msgDiv, confidence);
                 if(sources && sources.length) renderSourcesSection(msgDiv, sources);
-                if(!isReload) saveToHistory(role,content,images,chatId,sources);
+                if(!isReload) saveToHistory(role,content,images,chatId,sources,confidence);
                 if(role==='ai'&&!isReload) publishSelectionResponse(content,chatId);
             }
         }
@@ -2024,6 +2080,7 @@ function appendMessage(role,content,images=[],animate=false,isReload=false,targe
         textDiv.innerHTML=innerHTML;
         if(role==='ai') {
             addActions(msgDiv,content);
+            if(confidence) renderConfidenceCard(msgDiv, confidence);
             const verifiedSources = isReload ? (sources || []) : filterActuallyUsedSources(sources, content, '');
             if(verifiedSources && verifiedSources.length) renderSourcesSection(msgDiv, verifiedSources);
         } else if(role==='user'){
@@ -2036,7 +2093,7 @@ function appendMessage(role,content,images=[],animate=false,isReload=false,targe
         msgDiv.appendChild(textDiv);
         if(messagesList) messagesList.appendChild(msgDiv);
         if(chatContainer) chatContainer.scrollTop=chatContainer.scrollHeight;
-        if(!animate&&!isReload) saveToHistory(role,content,images,chatId,sources);
+        if(!animate&&!isReload) saveToHistory(role,content,images,chatId,sources,confidence);
         if(role==='ai'&&!isReload) publishSelectionResponse(content,chatId);
     }
 }
@@ -2086,7 +2143,17 @@ function appendMessageStream(chatId, placeholderMessage = 'Kenowa is thinking...
                 if (msgDiv && msgDiv.parentNode) {
                     msgDiv.parentNode.removeChild(msgDiv);
                 }
+                if (sources && sources.length) {
+                    appendMessage('ai', "I couldn't find enough information in the selected Capsule to answer this question accurately.", [], false, false, chatId);
+                }
                 return '';
+            }
+            if (queryText && sources && sources.some(s => s.type === 'web' || s.url)) {
+                const webSources = sources.filter(s => s.type === 'web' || s.url);
+                const verification = verifyAnswerAgainstAuthoritativeSources(full, queryText, webSources);
+                if (verification && verification.corrected) {
+                    full = verification.answer;
+                }
             }
             const html = typeof parseMarkdown === 'function' ? parseMarkdown(full) : escapeHtml(full);
             textDiv.innerHTML = linkify(html);
@@ -2134,11 +2201,12 @@ function addActions(parentDiv,content) {
 async function shareCurrentChat() {
 }
 
-function saveToHistory(role,content,images,chatId=null,sources=null) {
+function saveToHistory(role,content,images,chatId=null,sources=null,confidence=null) {
     const targetChatId = chatId || currentChatId;
     if(!chats[targetChatId]){ chats[targetChatId]={title:content.substring(0,40)+(content.length>40?'...':''),messages:[],timestamp:Date.now()}; }
     const msgObj = {role,content,images};
     if (sources && sources.length) msgObj.sources = sources;
+    if (confidence) msgObj.confidence = confidence;
     chats[targetChatId].messages.push(msgObj);
     saveChats();
     updateShareButtonVisibility();
@@ -2181,24 +2249,81 @@ async function handleSend(textOverride=null, executionOptions={}) {
     const hasImages=currentDraftImages.length>0;
     if(!text&&!hasImages) return;
     const isOk=await checkAccountStatus(); if(!isOk) return;
+
+    if (!currentChatId) currentChatId = Date.now().toString();
+    const lockedChatId = currentChatId;
+
     const imagesToSend=[...currentDraftImages];
-    if(!textOverride&&userInput){ userInput.value=''; userInput.style.height='24px'; appendMessage('user',text,imagesToSend); clearImages(); }
+    if (!executionOptions.skipUserDisplay) {
+        if (!textOverride && userInput) {
+            userInput.value=''; userInput.style.height='24px';
+        }
+        if (!executionOptions.isRegenerate) {
+            appendMessage('user', text, imagesToSend, false, false, lockedChatId);
+        }
+        clearImages();
+    }
     
-    // Web Search Trigger
-    if (text.startsWith('/search ')) {
-        const query = text.replace('/search ', '').trim();
-        if (!textOverride) appendMessage('user', text, imagesToSend);
-        showTypingIndicator(`🔍 Searching the web for: ${query}...`);
+    // ── Cascade: Priority 1 (Capsule) -> Priority 2 (Web Search) -> Priority 3 (AI Model) ──
+    const isExplicitSearch = typeof text === 'string' && text.startsWith('/search ');
+    const cleanedSearchQuery = isExplicitSearch ? text.replace(/^\/search\s+/, '').trim() : (typeof text === 'string' ? text.trim() : '');
+
+    if (isExplicitSearch && cleanedSearchQuery) {
+        text = cleanedSearchQuery;
+    }
+
+    const aiConfig = executionOptions.config || getSelectedAIConfig();
+    const isLocalAI = aiConfig.provider === 'noora' || aiConfig.provider === 'ollama_local';
+    const capsuleMaxChars = isLocalAI ? (aiConfig.provider === 'noora' ? 3500 : 8000) : CAPSULE_MAX_TOTAL_CHARS;
+
+    // Priority 1: Check Capsule
+    let capsuleContext = '';
+    let capsuleSources = [];
+    let isCapsuleSufficient = false;
+    try {
+        const capsuleData = getCapsuleReferenceData(text, capsuleMaxChars);
+        capsuleContext = capsuleData?.context || '';
+        capsuleSources = capsuleData?.sources || [];
+        isCapsuleSufficient = Boolean(capsuleData?.hasSufficientEvidence && capsuleContext);
+    } catch (_) {}
+
+    // Priority 2: Intelligent Web Search Check
+    let webSearchUsed = false;
+    let webResults = [];
+    let webSearchContext = '';
+    if (isExplicitSearch || (!isCapsuleSufficient && isWebSearchEnabled() && shouldPerformWebSearch(text, { isCapsuleSufficient, searchMode: getWebSearchMode() }))) {
+        showTypingIndicator(`🌐 Searching web for evidence…`);
         try {
-            const searchRes = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`);
-            const searchHtml = await searchRes.text();
-            const doc = new DOMParser().parseFromString(searchHtml, 'text/html');
-            const results = Array.from(doc.querySelectorAll('.result__snippet')).slice(0, 3).map(el => el.textContent.trim()).join('\\n\\n');
-            text = `I searched the web for "${query}". Here are the top results:\\n\\n${results}\\n\\nBased on this, answer my query: ${query}`;
-        } catch(err) {
-            hideTypingIndicator(); appendMessage('ai', '⚠️ Web search failed.'); return;
+            const searchRes = await performWebSearch(cleanedSearchQuery || text);
+            if (searchRes?.success && searchRes?.results?.length > 0) {
+                webSearchUsed = true;
+                webResults = searchRes.results;
+                webSearchContext = formatWebSearchContext(webResults, text);
+            }
+        } catch (_) {}
+    }
+
+    // Combine sources: Capsule sources first, then web sources with clickable URLs
+    const retrievedSources = [...(capsuleSources || [])];
+    if (webSearchUsed && webResults.length > 0) {
+        for (const res of webResults) {
+            retrievedSources.push({
+                name: res.title || res.url,
+                url: res.url,
+                type: 'web'
+            });
         }
     }
+
+    let combinedContext = '';
+    if (isCapsuleSufficient && capsuleContext) {
+        combinedContext += '\n\n' + capsuleContext;
+    }
+    if (webSearchContext) {
+        combinedContext += '\n\n' + webSearchContext;
+    }
+
+    const sysPrompt = combinedContext ? (getSystemPrompt() + combinedContext) : getSystemPrompt();
 
     const indicatorText = currentMode === 'deep' ? "Thinking deeply..." : currentMode === 'image' ? "Painting masterpiece..." : "Kenowa is thinking...";
     if (currentMode === 'image') {
@@ -2218,14 +2343,6 @@ async function handleSend(textOverride=null, executionOptions={}) {
         requestTimedOut = true;
         requestController.abort();
     }, 90000);
-
-    if (!currentChatId) currentChatId = Date.now().toString();
-    const lockedChatId = currentChatId;
-    const aiConfig = executionOptions.config || getSelectedAIConfig();
-    const isLocalAI = aiConfig.provider === 'noora' || aiConfig.provider === 'ollama_local';
-    const capsuleMaxChars = isLocalAI ? 800 : CAPSULE_MAX_TOTAL_CHARS;
-    const { context: capsuleContext, sources: retrievedSources } = getCapsuleReferenceData(text, capsuleMaxChars);
-    const sysPrompt = getSystemPrompt() + capsuleContext;
 
     try {
         const provider = aiConfig.provider;
@@ -2265,13 +2382,13 @@ async function handleSend(textOverride=null, executionOptions={}) {
                     buf+=dec.decode(value,{stream:true});
                     const lines=buf.split('\n'); buf=lines.pop()||'';
                     for(const line of lines){
-                        if(!line.startsWith('data: ')) continue;
-                        const s=line.slice(6).trim(); if(!s||s==='[DONE]') continue;
+                        if(!line.startsWith('data:')) continue;
+                        const s=line.replace(/^data:\s*/, '').trim(); if(!s||s==='[DONE]') continue;
                         try{ const d=JSON.parse(s); const tokens=d.candidates?.[0]?.content?.parts?.map(p=>p.text).filter(Boolean)||[]; for(const t of tokens) sm.update(t); }catch(_){}
                     }
                 }
                 buf+=dec.decode();
-                if(buf.trim().startsWith('data: ')){ const s=buf.trim().slice(6).trim(); if(s&&s!=='[DONE]') try{ const d=JSON.parse(s); const tokens=d.candidates?.[0]?.content?.parts?.map(p=>p.text).filter(Boolean)||[]; for(const t of tokens) sm.update(t); }catch(_){} }
+                if(buf.trim().startsWith('data:')){ const s=buf.trim().replace(/^data:\s*/, '').trim(); if(s&&s!=='[DONE]') try{ const d=JSON.parse(s); const tokens=d.candidates?.[0]?.content?.parts?.map(p=>p.text).filter(Boolean)||[]; for(const t of tokens) sm.update(t); }catch(_){} }
                 const aiMessage = sm.finalize(retrievedSources, text);
                 if (!isExamMode && !isSQMode) setTimeout(() => getAISuggestions(text, aiMessage), 500);
             }
@@ -2532,13 +2649,13 @@ async function handleSend(textOverride=null, executionOptions={}) {
                 buf+=dec.decode(value,{stream:true});
                 const lines=buf.split('\n'); buf=lines.pop()||'';
                 for(const line of lines){
-                    if(!line.startsWith('data: ')) continue;
-                    const s=line.slice(6).trim(); if(s==='[DONE]'||!s) continue;
+                    if(!line.startsWith('data:')) continue;
+                    const s=line.replace(/^data:\s*/, '').trim(); if(s==='[DONE]'||!s) continue;
                     try{ const d=JSON.parse(s); const c=getOpenAIDeltaText(d); if(c) sm.update(c); }catch(_){}
                 }
             }
             buf+=dec.decode();
-            if(buf.trim().startsWith('data: ')){ const s=buf.trim().slice(6).trim(); if(s&&s!=='[DONE]') try{ const d=JSON.parse(s); const c=d.choices?.[0]?.delta?.content||''; if(c) sm.update(c); }catch(_){} }
+            if(buf.trim().startsWith('data:')){ const s=buf.trim().replace(/^data:\s*/, '').trim(); if(s&&s!=='[DONE]') try{ const d=JSON.parse(s); const c=getOpenAIDeltaText(d)||(d.choices?.[0]?.delta?.content||''); if(c) sm.update(c); }catch(_){} }
             const aiMessage = sm.finalize(retrievedSources, text);
             if (!isExamMode && !isSQMode) setTimeout(() => getAISuggestions(text, aiMessage), 500);
         } else if (provider === 'ollama_cloud' || provider === 'ollama') {
@@ -2611,7 +2728,7 @@ async function handleSend(textOverride=null, executionOptions={}) {
             const ollamaBaseUrl = getOllamaBaseUrl();
             url = `${ollamaBaseUrl}/api/chat`;
             const trimmedPrompt = (text && text.length > 3000) ? text.substring(0, 3000) : (text || "Analyze this image");
-            const trimmedSys = (sysPrompt && sysPrompt.length > 1000) ? sysPrompt.substring(0, 1000) : sysPrompt;
+            const trimmedSys = (sysPrompt && sysPrompt.length > 12000) ? sysPrompt.substring(0, 12000) : sysPrompt;
             const ollamaMessages = [
                 { role: 'system', content: trimmedSys },
                 { role: 'user', content: trimmedPrompt, ...(ollamaImages.length ? { images: ollamaImages } : {}) }
@@ -2623,7 +2740,7 @@ async function handleSend(textOverride=null, executionOptions={}) {
                 keep_alive: '60m',
                 options: {
                     temperature: 0.6,
-                    num_predict: 1024,
+                    num_predict: 4096,
                     num_ctx: 4096
                 }
             });
@@ -2648,7 +2765,7 @@ async function handleSend(textOverride=null, executionOptions={}) {
                             keep_alive: '60m',
                             options: {
                                 temperature: 0.6,
-                                num_predict: 1024,
+                                num_predict: 4096,
                                 num_ctx: 4096
                             }
                         })
@@ -2738,7 +2855,7 @@ async function handleSend(textOverride=null, executionOptions={}) {
             persistActiveProviderConfig(fallbackConfig);
             showToast(`Primary provider unavailable. Switching to ${PROVIDER_LABELS[fallbackConfig.provider]} · ${fallbackConfig.model}`, 'success');
             attemptedProviders.add(fallbackConfig.provider);
-            return handleSend(text, { config: fallbackConfig, fallbackTried: false, attemptedProviders });
+            return handleSend(text, { config: fallbackConfig, fallbackTried: false, attemptedProviders, skipUserDisplay: true });
         }
         hideTypingIndicator();
         if(requestTimedOut) appendMessage('ai','⚠️ The model did not respond within 90 seconds. Check the provider, API key, and selected model in Settings, then try again.',[],false,false,lockedChatId);
@@ -2774,127 +2891,457 @@ function stopGeneration() {
     toggleSendButton(false);
 }
 
+// ── Strict Option Matching Helpers (Shared by SQ & Exam Mode) ──
+function cleanOptionText(str) {
+    return String(str || '')
+        .toLowerCase()
+        .replace(/&nbsp;/g, ' ')
+        .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function parseTargetAnswer(targetAns) {
+    const raw = String(targetAns || '').trim();
+    const prefixMatch = raw.match(/^(?:(?:option|choice)\s+)?(?:\[|\()?([a-hA-H1-9])(?:[\.\)\:\s\]\-]+|$)(.*)$/i);
+    let letter = null;
+    let text = raw;
+    let hasExplicitLetter = false;
+
+    if (prefixMatch) {
+        letter = prefixMatch[1].toUpperCase();
+        text = prefixMatch[2].trim();
+        hasExplicitLetter = true;
+    } else if (/^[a-hA-H1-9]$/i.test(raw)) {
+        letter = raw.toUpperCase();
+        text = '';
+        hasExplicitLetter = true;
+    }
+
+    const cleanStem = cleanOptionText(text).replace(/^[a-z0-9]\s+/, '').trim();
+    const isPureLetter = hasExplicitLetter && cleanStem.length === 0;
+
+    return { letter, text, cleanStem, isPureLetter, raw };
+}
+
+function isTrueVariant(str) {
+    const s = cleanOptionText(str);
+    return s === 'true' || s === 't' || s === 'yes' || s === 'y' || s === '1' || s === 'correct';
+}
+
+function isFalseVariant(str) {
+    const s = cleanOptionText(str);
+    return s === 'false' || s === 'f' || s === 'no' || s === 'n' || s === '0' || s === 'incorrect';
+}
+
+function scoreOptionMatch(candidateText, candidateValue, candidateLetter, targetAns, optIndex, totalOptionsInGroup) {
+    if (!targetAns) return 0;
+
+    const parsed = parseTargetAnswer(targetAns);
+    const cTextClean = cleanOptionText(candidateText);
+    const cValClean = cleanOptionText(candidateValue);
+    const cStem = cTextClean.replace(/^[a-z0-9]\s+/, '').trim();
+
+    // 1. True / False normalization
+    const targetIsTrue = isTrueVariant(targetAns) || isTrueVariant(parsed.cleanStem);
+    const targetIsFalse = isFalseVariant(targetAns) || isFalseVariant(parsed.cleanStem);
+    const candidateIsTrue = isTrueVariant(candidateText) || isTrueVariant(candidateValue);
+    const candidateIsFalse = isFalseVariant(candidateText) || isFalseVariant(candidateValue);
+
+    if (targetIsTrue && candidateIsTrue) return 100;
+    if (targetIsFalse && candidateIsFalse) return 100;
+    if ((targetIsTrue && candidateIsFalse) || (targetIsFalse && candidateIsTrue)) return 0;
+
+    // 2. Exact match of candidate text/value with raw target or parsed stem
+    if (cStem && parsed.cleanStem && cStem === parsed.cleanStem) return 100;
+    if (cTextClean && (cTextClean === cleanOptionText(targetAns) || cTextClean === parsed.cleanStem)) return 100;
+    if (cValClean && (cValClean === cleanOptionText(targetAns) || cValClean === parsed.cleanStem)) return 100;
+
+    // 3. Pure letter matching (when target has NO conflicting text, e.g. "B" or "B.")
+    const optLetter = candidateLetter ? String(candidateLetter).toUpperCase() : null;
+    if (parsed.isPureLetter && parsed.letter) {
+        if (optLetter && optLetter === parsed.letter) return 96;
+        const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+        const targetIdx = letters.indexOf(parsed.letter);
+        if (targetIdx !== -1 && targetIdx === optIndex) return 92;
+        return 0; // Pure letter target does NOT match different letters
+    }
+
+    // 4. Target has substantive text: Verify text match!
+    // NEVER allow a letter-match to override contradictory text!
+    if (parsed.cleanStem && parsed.cleanStem.length >= 3) {
+        if (!cStem) return 0;
+
+        // Exact stem match
+        if (cStem === parsed.cleanStem) return 100;
+
+        // Substring containment with length ratio check
+        if (cStem.includes(parsed.cleanStem) || parsed.cleanStem.includes(cStem)) {
+            const minLen = Math.min(cStem.length, parsed.cleanStem.length);
+            const maxLen = Math.max(cStem.length, parsed.cleanStem.length);
+            const lenRatio = minLen / maxLen;
+            if (lenRatio >= 0.75) {
+                if (optLetter && parsed.letter && optLetter === parsed.letter) return 95;
+                return 88;
+            }
+        }
+
+        // Token overlap with strict threshold (must share >= 80% words)
+        const cWords = cStem.split(' ').filter(w => w.length > 2);
+        const tWords = parsed.cleanStem.split(' ').filter(w => w.length > 2);
+        if (cWords.length > 0 && tWords.length > 0) {
+            const cWordSet = new Set(cWords);
+            const matchedCount = tWords.filter(w => cWordSet.has(w)).length;
+            const overlapRatio = matchedCount / Math.max(cWordSet.size, tWords.length);
+            if (overlapRatio >= 0.8) {
+                return Math.floor(overlapRatio * 85);
+            }
+        }
+
+        // Text completely disagrees! Return 0 even if letters match!
+        return 0;
+    }
+
+    return 0;
+}
+
 // ── SQ (Solve Question) ────────────────────────────────────────
 async function handleSQ() {
     isSQMode = true;
     try {
-        const tabs=await chrome.tabs.query({active:true,currentWindow:true});
-        if(!tabs?.length) return;
-        const tab=tabs[0];
-        if(!tab.url||!isSafeUrl(tab.url)){
-            appendMessage('ai','⚠️ Cannot analyze this page. Chrome does not permit scripting on system pages or the Chrome Web Store. Please navigate to your quiz or exam website first.');
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tabs?.length) return;
+        const tab = tabs[0];
+        if (!tab.url || !isSafeUrl(tab.url)) {
+            appendMessage('ai', '⚠️ Cannot analyze this page. Chrome does not permit scripting on system pages or the Chrome Web Store. Please navigate to your quiz or exam website first.');
             hideTypingIndicator();
             return;
         }
         showTypingIndicator("Scanning page for questions & selecting answer...");
-        
+
         const activeProvider = getSelectedAIConfig().provider;
         const isLocalAI = activeProvider === 'noora' || activeProvider === 'ollama_local';
-        const extraction=await chrome.scripting.executeScript({
-            target:{tabId:tab.id},
-            func: () => {
-                const findQuestionContent = () => {
-                    const moodleQ = document.querySelector('.qtext');
-                    let mainText = moodleQ ? moodleQ.innerText.trim() : '';
-
-                    const qContainers = document.querySelectorAll('.que, .question, .form-question, .mc-question, .item-container, [role="radiogroup"], .quiz-question');
-                    if (qContainers.length > 0) {
-                        const container = qContainers[0];
-                        if (!mainText) {
-                            const clone = container.cloneNode(true);
-                            clone.querySelectorAll('.info, .status, .grade, .question-number, .q-metadata, .answer, .ablock, .prompt').forEach(m => m.remove());
-                            mainText = clone.innerText.trim();
-                        }
-                        const options = container.querySelectorAll('.answer, .ablock, .choice, .option, .choices');
-                        if (options.length > 0) {
-                            const optionList = Array.from(options[0].querySelectorAll('div, label, span'))
-                                .map(el => el.innerText.trim())
-                                .filter(t => t.length > 0 && !t.includes('Select one:') && !t.includes('Marked out of'));
-                            const uniqueOptions = [...new Set(optionList)].slice(0, 8);
-                            if (uniqueOptions.length > 0) {
-                                mainText += "\nChoices:\n" + uniqueOptions.join('\n');
-                            }
-                        }
-                        return mainText;
-                    }
-                    const main = document.querySelector('main, #main, #content, .content, #page-content, .region-main, #main-content');
-                    if (main) return main.innerText.trim();
-                    return document.body?.innerText || '';
-                };
-                const raw = findQuestionContent();
-                return (raw || '').replace(/\n\s*\n\s*\n+/g, '\n\n').trim();
-            }
+        const extraction = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: extractPageQuestions
         });
-        if(extraction?.[0]?.result){
-            const pageLimit = isLocalAI ? 2400 : 12000;
-            const pageText = extraction[0].result.substring(0, pageLimit);
 
-            // Check all added Capsule knowledge bases simultaneously for relevant facts & answer verification
-            const capsuleLimit = isLocalAI ? 1200 : 8000;
-            const { context: capsuleContext } = getCapsuleReferenceData(pageText, capsuleLimit, { checkAllCapsules: true });
-            let capsuleSection = '';
-            if (capsuleContext && capsuleContext.trim()) {
-                capsuleSection = `\n\n${capsuleContext}\n\nIMPORTANT: The above CAPSULE REFERENCE MATERIAL contains verified course notes/facts from all your Capsules checked simultaneously. If any question relates to the Capsule material, strictly prioritize and choose the answer matching the Capsule reference.\n`;
-                showTypingIndicator('🎓 Checking Capsules…');
-            }
+        const result = extraction?.[0]?.result;
+        const detectedQuestions = result?.detectedQuestions || [];
 
-            const prompt=`You are an expert exam-answering assistant. Below is text from an online quiz/exam question.
-${capsuleSection}
-TASK:
-1. Identify the multiple-choice or multi-select question and its options.
-2. Pick the single best correct answer for each question. Verify facts using Capsule Reference Material if provided.
-3. Return ONLY a valid JSON array of exact answer texts, copied word-for-word from the text.
-4. Include NOTHING else — no explanations, numbers, or commentary.
-5. If the page has no answerable questions, return: []
-
-IMPORTANT: Copy the answer text EXACTLY as it appears. Even minor differences will prevent selection.
-
-Page text:
-${pageText}`;
-
-            const aiRaw = await apiGenerateText(prompt);
+        if (!detectedQuestions.length) {
             hideTypingIndicator();
-            
-            if (!aiRaw?.trim() || aiRaw.trim() === '[]') {
-                appendMessage('ai', 'ℹ️ No questions/answers detected on this page.');
-            } else {
-                let parsedAnswers = [];
+            appendMessage('ai', '⚠️ No question or multiple-choice options could be detected on the active webpage. Please make sure you are on a quiz or question page.');
+            return;
+        }
+
+        const isSingleQuestion = detectedQuestions.length === 1;
+        let fullPromptText = '';
+        let prompt = '';
+
+        const capsules = getCapsules();
+        const isCapsuleActive = capsules.length > 0;
+        let capsuleSection = '';
+        let retrievedSources = [];
+        let capsuleUsed = false;
+        let webSearchUsed = false;
+        let webResults = [];
+        let webSearchSection = '';
+
+        if (isSingleQuestion) {
+            const q = detectedQuestions[0];
+            const choicesBlock = q.options.map(o => `  [${o.letter}] ${o.text}`).join('\n');
+            fullPromptText = `${q.stem}\n${choicesBlock}`;
+
+            // Priority 1: Check Capsule
+            if (isCapsuleActive) {
+                showTypingIndicator('🎓 Checking Capsules…');
+                const capsuleLimit = isLocalAI ? 1200 : 8000;
+                let ragResult = null;
                 try {
-                    const parsed = JSON.parse(aiRaw);
-                    if (Array.isArray(parsed)) parsedAnswers = parsed;
-                    else if (typeof parsed === 'string') parsedAnswers = [parsed];
-                    else if (parsed && typeof parsed === 'object') parsedAnswers = Object.values(parsed);
+                    ragResult = getCapsuleReferenceData(fullPromptText, capsuleLimit);
                 } catch (_) {
-                    parsedAnswers = [aiRaw.trim()];
+                    ragResult = { context: '', sources: [], hasSufficientEvidence: false };
                 }
 
-                // Clean answers to prevent @@CODEBLOCK0@@ leaks
-                const cleanAnswers = parsedAnswers.map(ans => {
-                    let s = String(ans || '').trim();
-                    s = s.replace(/^```[^\n]*\n([\s\S]*?)\n?```$/g, '$1').trim();
-                    s = s.replace(/^`+|`+$/g, '').trim();
-                    s = s.replace(/@@CODEBLOCK\d+@@/g, '').trim();
-                    return s;
-                }).filter(Boolean);
-
-                let answerDisplay = '### 🎯 Correct Answer\n\n';
-                if (cleanAnswers.length > 0) {
-                    answerDisplay += cleanAnswers.map(ans => `- **${escapeHtml(ans)}**`).join('\n');
+                if (ragResult?.hasSufficientEvidence && ragResult?.context) {
+                    capsuleUsed = true;
+                    retrievedSources = ragResult.sources || [];
+                    capsuleSection = `\n\n${ragResult.context}\n\nCRITICAL CAPSULE RULE:\nUse the verified Capsule references above as your primary source of truth. Ground your answer strictly in these references. If a choice is supported by the Capsule references, select that choice.\n`;
                 } else {
-                    answerDisplay += `**${escapeHtml(aiRaw)}**`;
+                    capsuleUsed = false;
+                    capsuleSection = '';
+                }
+            }
+
+            // Priority 2: Intelligent Web Search if Capsule is absent or insufficient
+            if (!capsuleUsed && isWebSearchEnabled()) {
+                const searchMode = getWebSearchMode();
+                if (shouldPerformWebSearch(q.stem, { isCapsuleSufficient: false, searchMode })) {
+                    showTypingIndicator('🌐 Searching web for evidence…');
+                    try {
+                        const searchRes = await performWebSearch(q.stem, { questionOptions: q.options });
+                        if (searchRes?.success && searchRes?.results?.length > 0) {
+                            webSearchUsed = true;
+                            webResults = searchRes.results;
+                            webSearchSection = `\n\n${formatWebSearchContext(webResults, detectedQuestions[0]?.stem || fullPromptText)}\n\nCRITICAL SEARCH RULE:\nUse the web search evidence above to determine the most accurate answer strictly from the Available Choices.\n`;
+                        }
+                    } catch (_) {}
+                }
+            }
+
+            prompt = `You are an expert exam-answering assistant.
+Analyze the following quiz question and choose the correct answer strictly from the Available Choices provided below.
+${capsuleSection}
+${webSearchSection}
+Question:
+${q.stem}
+
+Available Choices:
+${choicesBlock}
+
+CRITICAL RULES:
+1. Choose the correct answer strictly from the Available Choices provided above.
+2. Do NOT invent, assume, or output any option not listed in the Available Choices.
+3. Return ONLY a valid JSON array containing the chosen option letter and its exact text from the Available Choices:
+   Format: ["Letter. Actual Option Text"]
+   Example: ["${q.options[0]?.letter || 'A'}. ${q.options[0]?.text ? q.options[0].text.replace(/"/g, "'").slice(0, 40) : 'Actual text'}"]
+   For multiple-select (checkboxes), include all correct options: ["A. ...", "C. ..."]
+   Do NOT return dummy words like "Option Text" — always output the real text from the choices above.
+4. Include NOTHING else — no explanations, commentary, or markdown fences.`;
+        } else {
+            // Multi-question page
+            const questionsBlock = detectedQuestions.map((q, idx) => {
+                return `Question ${idx + 1}: ${q.stem}\nType: ${q.type}\nAvailable Choices:\n${q.options.map(o => `  [${o.letter}] ${o.text}`).join('\n')}`;
+            }).join('\n\n');
+            fullPromptText = questionsBlock;
+
+            // Priority 1: Check Capsule
+            if (isCapsuleActive) {
+                showTypingIndicator('🎓 Checking Capsules…');
+                const capsuleLimit = isLocalAI ? 1200 : 8000;
+                let ragResult = null;
+                try {
+                    ragResult = getCapsuleReferenceData(fullPromptText, capsuleLimit);
+                } catch (_) {
+                    ragResult = { context: '', sources: [], hasSufficientEvidence: false };
                 }
 
-                appendMessage('ai', answerDisplay, [], true, false, currentChatId, []);
-                
-                // Save to QA training cache
-                const questionForHash = pageText.substring(0, 2000);
-                saveQACache(questionForHash, aiRaw, 70);
-                
-                await executeExamClicker(tab.id, aiRaw, false, false, false, false);
+                if (ragResult?.hasSufficientEvidence && ragResult?.context) {
+                    capsuleUsed = true;
+                    retrievedSources = ragResult.sources || [];
+                    capsuleSection = `\n\n${ragResult.context}\n\nCRITICAL CAPSULE RULE:\nUse the verified Capsule references above as your primary source of truth. Ground your answer strictly in these references. If a choice is supported by the Capsule references, select that choice.\n`;
+                } else {
+                    capsuleUsed = false;
+                    capsuleSection = '';
+                }
             }
-        } else { hideTypingIndicator(); appendMessage('ai','Could not read page content.'); }
-    } catch(err){ hideTypingIndicator(); appendMessage('ai',`Error scanning page: ${sanitize(err.message)}`); }
-    finally { isSQMode = false; }
+
+            // Priority 2: Intelligent Web Search if Capsule is absent or insufficient
+            if (!capsuleUsed && isWebSearchEnabled()) {
+                const searchMode = getWebSearchMode();
+                if (shouldPerformWebSearch(fullPromptText, { isCapsuleSufficient: false, searchMode })) {
+                    showTypingIndicator('🌐 Searching web for evidence…');
+                    try {
+                        const searchRes = await performWebSearch(detectedQuestions[0]?.stem || fullPromptText, { questionOptions: detectedQuestions[0]?.options });
+                        if (searchRes?.success && searchRes?.results?.length > 0) {
+                            webSearchUsed = true;
+                            webResults = searchRes.results;
+                            webSearchSection = `\n\n${formatWebSearchContext(webResults, detectedQuestions[0]?.stem || fullPromptText)}\n\nCRITICAL SEARCH RULE:\nUse the web search evidence above to determine the most accurate answer strictly from the Available Choices.\n`;
+                        }
+                    } catch (_) {}
+                }
+            }
+
+            prompt = `You are an expert exam-answering assistant.
+Analyze the following quiz questions and choose the correct answer strictly from the Available Choices provided for each question below.
+${capsuleSection}
+${webSearchSection}
+${questionsBlock}
+
+CRITICAL RULES:
+1. Choose the correct answer strictly from the Available Choices provided above for each question.
+2. Do NOT invent, assume, or output any option not listed in the Available Choices.
+3. Return ONLY a valid JSON array of the chosen option letter and text in exact order of the questions:
+   Format: ["Letter. Option Text"]
+   Example for 2 questions: ["B. Option 1", "A. Option 2"]
+4. Include NOTHING else — no explanations, commentary, or markdown fences.`;
+        }
+
+        let aiRaw = await apiGenerateText(prompt);
+        hideTypingIndicator();
+
+        if (webSearchUsed && webResults.length > 0) {
+            const verified = verifyAnswerAgainstAuthoritativeSources(aiRaw, detectedQuestions[0]?.stem || fullPromptText, webResults);
+            if (verified && verified.answer) {
+                aiRaw = verified.answer;
+            }
+        }
+
+        if (!aiRaw?.trim() || aiRaw.trim() === '[]') {
+            appendMessage('ai', 'ℹ️ No answer could be generated for this page.');
+            return;
+        }
+
+        const parsedAnswers = parseAiExamAnswers(aiRaw, detectedQuestions.length);
+        const validatedAnswers = [];
+
+        let primaryOptionMatchScore = 0;
+        let bestMatchedOpt = null;
+
+        if (isSingleQuestion) {
+            const q = detectedQuestions[0];
+            const isSingleChoice = q.type === 'single' || q.type === 'truefalse';
+
+            if (isSingleChoice) {
+                let bestMatchScore = 0;
+                for (const rawAns of parsedAnswers) {
+                    for (const opt of q.options) {
+                        const sc = scoreOptionMatch(opt.text, opt.value, opt.letter, rawAns, opt.index, q.options.length);
+                        if (sc > bestMatchScore && sc >= 75) {
+                            bestMatchScore = sc;
+                            bestMatchedOpt = opt;
+                        }
+                    }
+                }
+                primaryOptionMatchScore = bestMatchScore;
+                if (bestMatchedOpt) {
+                    validatedAnswers.push(`${bestMatchedOpt.letter}. ${bestMatchedOpt.text}`);
+                }
+            } else {
+                // Multi-select checkbox
+                const seenOpts = new Set();
+                let maxSc = 0;
+                for (const rawAns of parsedAnswers) {
+                    let bestMatchScore = 0;
+                    let curOpt = null;
+                    for (const opt of q.options) {
+                        if (seenOpts.has(opt.id || opt.letter)) continue;
+                        const sc = scoreOptionMatch(opt.text, opt.value, opt.letter, rawAns, opt.index, q.options.length);
+                        if (sc > bestMatchScore && sc >= 75) {
+                            bestMatchScore = sc;
+                            curOpt = opt;
+                        }
+                    }
+                    if (curOpt) {
+                        seenOpts.add(curOpt.id || curOpt.letter);
+                        validatedAnswers.push(`${curOpt.letter}. ${curOpt.text}`);
+                        if (bestMatchScore > maxSc) maxSc = bestMatchScore;
+                    }
+                }
+                primaryOptionMatchScore = maxSc;
+            }
+        } else {
+            // Multi-question page: match 1:1
+            let totalSc = 0;
+            let matchedQCount = 0;
+            for (let qIdx = 0; qIdx < detectedQuestions.length; qIdx++) {
+                const q = detectedQuestions[qIdx];
+                const rawAns = parsedAnswers[qIdx];
+                if (!rawAns) continue;
+
+                let bestOpt = null;
+                let bestScore = 0;
+                for (const opt of q.options) {
+                    const sc = scoreOptionMatch(opt.text, opt.value, opt.letter, rawAns, opt.index, q.options.length);
+                    if (sc > bestScore && sc >= 75) {
+                        bestScore = sc;
+                        bestOpt = opt;
+                    }
+                }
+                if (bestOpt) {
+                    validatedAnswers.push(`Question ${qIdx + 1}: ${bestOpt.letter}. ${bestOpt.text}`);
+                    totalSc += bestScore;
+                    matchedQCount++;
+                }
+            }
+            primaryOptionMatchScore = matchedQCount > 0 ? (totalSc / matchedQCount) : 0;
+        }
+
+        // Calculate AI Confidence Score
+        let conflictCheck = null;
+        if (webSearchUsed && webResults.length > 1) {
+            conflictCheck = detectConflictingInformation(webResults, detectedQuestions[0]?.stem || '', validatedAnswers.join(' '));
+        }
+        const confidenceData = calculateAnswerConfidence({
+            answerText: validatedAnswers.join(', '),
+            selectedOption: bestMatchedOpt,
+            capsuleRelevance: {
+                hasSufficientEvidence: capsuleUsed,
+                sources: retrievedSources,
+                grounded: capsuleUsed
+            },
+            webSearchResults: webResults,
+            webSearchUsed,
+            capsuleUsed,
+            isWebSearchEnabled: isWebSearchEnabled(),
+            optionMatchScore: primaryOptionMatchScore || (validatedAnswers.length > 0 ? 95 : 0),
+            isSingleChoiceWinner: true,
+            hasConflictingSources: Boolean(conflictCheck?.hasConflict),
+            searchFailed: false
+        });
+
+        let answerDisplay = '';
+        if (validatedAnswers.length === 1) {
+            answerDisplay = `### 🎯 Correct Answer\n\n**${escapeHtml(validatedAnswers[0])}**`;
+        } else if (validatedAnswers.length > 1) {
+            answerDisplay = `### 🎯 Correct Answers\n\n` + validatedAnswers.map(ans => `- **${escapeHtml(ans)}**`).join('\n');
+        } else {
+            let fallbackAns = '';
+            if (parsedAnswers.length > 0 && detectedQuestions[0]?.options?.length > 0) {
+                const p = parseTargetAnswer(parsedAnswers[0]);
+                if (p.letter) {
+                    const foundOpt = detectedQuestions[0].options.find(o => o.letter === p.letter);
+                    if (foundOpt) fallbackAns = `${foundOpt.letter}. ${foundOpt.text}`;
+                }
+            }
+            if (!fallbackAns) {
+                fallbackAns = String(aiRaw)
+                    .replace(/\[\s*(?:"[^"]*"(?:\s*,\s*"[^"]*")*)\s*\]/g, (m) => {
+                        try { return JSON.parse(m).join(', '); } catch (_) { return m; }
+                    })
+                    .replace(/^\[|\]$/g, '')
+                    .replace(/^["']|["']$/g, '')
+                    .replace(/@@CODEBLOCK\d+@@/g, '')
+                    .trim();
+            }
+            answerDisplay = `### 🎯 Correct Answer\n\n**${escapeHtml(fallbackAns || aiRaw)}**`;
+        }
+
+        if (isCapsuleActive && capsuleUsed && retrievedSources.length > 0) {
+            const verifiedLines = [];
+            for (const ans of validatedAnswers) {
+                const ver = verifyAnswerAgainstSources(ans, ans, retrievedSources);
+                if (ver.grounded && ver.verifiedSource) {
+                    verifiedLines.push(`- **${escapeHtml(ver.verifiedSource.name)}**${ver.verifiedSource.heading ? ` (${escapeHtml(ver.verifiedSource.heading)})` : ''}`);
+                }
+            }
+            if (verifiedLines.length > 0) {
+                answerDisplay += `\n\n**📚 Verified by Capsule:**\n${[...new Set(verifiedLines)].join('\n')}`;
+            }
+        } else if (!capsuleUsed && !webSearchUsed) {
+            answerDisplay += `\n\n*(Answer generated from AI base knowledge — external verification unavailable)*`;
+        }
+
+        answerDisplay += `\n\n${formatConfidenceMarkdown(confidenceData)}`;
+
+        const combinedSources = [...(capsuleUsed ? (retrievedSources || []) : []), ...(webSearchUsed ? (webResults || []) : [])];
+        appendMessage('ai', answerDisplay, [], true, false, currentChatId, combinedSources, confidenceData);
+
+        // Save to QA training cache
+        const questionForHash = fullPromptText.substring(0, 2000);
+        saveQACache(questionForHash, JSON.stringify(validatedAnswers), 70);
+
+        // Auto-select answer on the page (autoNavigate = false)
+        const answerPayload = JSON.stringify(validatedAnswers.length > 0 ? validatedAnswers : parsedAnswers);
+        await executeExamClicker(tab.id, answerPayload, false, false, false, false);
+
+    } catch(err) {
+        hideTypingIndicator();
+        appendMessage('ai', `Error scanning page: ${sanitize(err.message)}`);
+    } finally {
+        isSQMode = false;
+    }
 }
 
 // ── Summarize ──────────────────────────────────────────────────
@@ -2980,7 +3427,7 @@ function regenerateMessage() {
     if(allMessages){ for(let i=spliceIndex;i<chat.messages.length;i++){ if(allMessages[i]) allMessages[i].remove(); } }
     chat.messages.splice(spliceIndex); saveChats();
     currentDraftImages=(lastUserMsg.images||[]).map(img=>typeof img==='string'?img:img?.image_url?.url).filter(Boolean);
-    handleSend(lastUserMsg.content);
+    handleSend(lastUserMsg.content, { isRegenerate: true, skipUserDisplay: true });
 }
 
 // ── Typing Indicator ───────────────────────────────────────────
@@ -3050,7 +3497,7 @@ function loadChat(id,closeSidebar=true) {
     if (chat && chat.messages) {
         chat.messages.forEach(msg => {
             try {
-                appendMessage(msg.role, msg.content, msg.images || [], false, true, null, msg.sources);
+                appendMessage(msg.role, msg.content, msg.images || [], false, true, null, msg.sources, msg.confidence);
             } catch (e) {
                 console.error("Error rendering message during load:", e);
             }
@@ -3146,8 +3593,8 @@ async function apiGenerateText(prompt) {
             keep_alive: '60m',
             options: {
                 temperature: 0.2,
-                num_predict: 512,
-                num_ctx: 2048
+                num_predict: 4096,
+                num_ctx: 4096
             }
         });
         if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
@@ -3310,6 +3757,7 @@ function toggleExamMode() {
     if (isExamMode) {
         // ── STOP ──
         isExamMode = false;
+        resetExamState();
         examModeBtn?.classList.remove('active');
         if (examModeTabId) removeExamBanner(examModeTabId);
         clearTimeout(examModeTimeout);
@@ -3328,12 +3776,12 @@ function toggleExamMode() {
             return;
         }
         isExamMode = true;
+        resetExamState();
         examModeBtn?.classList.add('active');
         examModeTabId = tab.id;
         // Bind exam tab to current chat so messages go to right place
         if (!currentTabChatMap[examModeTabId]) currentTabChatMap[examModeTabId] = currentChatId;
         examModeStartTime = Date.now();
-        lastExamPageSignature = ''; lastExamAnswer = ''; examNoQuestionCount = 0;
         injectExamBanner(examModeTabId);
         examAppendMessage('🎓 **Exam Mode ON** — AI is analysing your exam page, selecting answers, and navigating questions automatically. You can freely switch tabs.');
         examCountdownInterval = setInterval(updateExamCountdown, 1000);
@@ -3364,8 +3812,79 @@ function removeExamBanner(tabId) {
     }).catch(()=>{});
 }
 
+// ── Exam Mode AI Answer Parser ────────────────────────────────
+function parseAiExamAnswers(aiRaw, expectedCount = 1) {
+    if (!aiRaw || typeof aiRaw !== 'string') return [];
+    let clean = aiRaw.trim();
+    clean = clean.replace(/```(?:json)?([\s\S]*?)```/gi, '$1').trim();
+    clean = clean.replace(/^`+|`+$/g, '').trim();
+    clean = clean.replace(/@@CODEBLOCK\d+@@/g, '').trim();
+
+    // 1. Try JSON Array
+    try {
+        const arrMatch = clean.match(/\[[\s\S]*?\]/);
+        if (arrMatch) {
+            const parsed = JSON.parse(arrMatch[0]);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                if (typeof parsed[0] === 'object' && parsed[0] !== null) {
+                    return parsed.map(item => item.answer || item.option || item.value || JSON.stringify(item)).map(String);
+                }
+                if (parsed.length === 1 && typeof parsed[0] === 'string' && parsed[0].includes(',') && (expectedCount > 1 || parsed[0].split(',').length > 1)) {
+                    return parsed[0].split(',').map(s => s.trim()).filter(Boolean);
+                }
+                return parsed.map(s => String(s || '').trim()).filter(Boolean);
+            }
+        }
+    } catch (_) {}
+
+    // 2. Try JSON Object e.g. {"1": "True", "2": "False"}
+    try {
+        const objMatch = clean.match(/\{[\s\S]*?\}/);
+        if (objMatch) {
+            const parsed = JSON.parse(objMatch[0]);
+            if (typeof parsed === 'object' && parsed !== null) {
+                const keys = Object.keys(parsed).sort((a, b) => {
+                    const numA = parseInt(a.replace(/\D/g, '') || '0', 10);
+                    const numB = parseInt(b.replace(/\D/g, '') || '0', 10);
+                    return numA - numB;
+                });
+                if (keys.length > 0) {
+                    return keys.map(k => String(parsed[k] || '').trim()).filter(Boolean);
+                }
+            }
+        }
+    } catch (_) {}
+
+    // 3. Try numbered list e.g. "1. True\n2. True\n3. False"
+    const numberedLines = clean.split('\n').map(l => l.trim()).filter(Boolean);
+    const numberedMatches = [];
+    for (const line of numberedLines) {
+        const m = line.match(/^(?:Q\d+[:.]?|\d+[\.\:\)\-]\s*)(.+)$/i);
+        if (m) numberedMatches.push(m[1].trim());
+    }
+    if (numberedMatches.length > 0 && (numberedMatches.length === expectedCount || expectedCount > 1)) {
+        return numberedMatches;
+    }
+
+    // 4. Strip "Answer:" or "✅ Answer:" prefixes
+    clean = clean.replace(/^(?:✅\s*)?(?:answer|answers|correct answer)[:\s]*/i, '').trim();
+
+    // 5. If comma-separated answers e.g. "True, True, True" or "A, B, C"
+    if (clean.includes(',')) {
+        const parts = clean.split(',').map(s => s.trim()).filter(Boolean);
+        if (parts.length > 1) return parts;
+    }
+
+    // 6. Single answer
+    if (clean.length > 0 && clean !== '[]') return [clean];
+    return [];
+}
+
 async function runExamModeStep() {
     if (!isExamMode || typeof examModeTabId !== 'number') return;
+    if (currentExamState.isProcessing) return;
+    currentExamState.isProcessing = true;
+
     try {
         // Verify exam tab still exists
         let tab;
@@ -3378,197 +3897,446 @@ async function runExamModeStep() {
 
         updateExamBannerStatus(examModeTabId, 'Reading page…');
 
-        // Extract page data FROM THE EXAM TAB (works regardless of active tab)
+        // Extract page data FROM THE EXAM TAB
         const extraction = await chrome.scripting.executeScript({
             target: { tabId: examModeTabId },
-            func: () => {
-                const body = document.body;
-                const text = body?.innerText || '';
-                
-                // Helper to find the "real" question text (avoiding headers/nav/metadata)
-                const findQuestionText = () => {
-                    // Priority 1: Moodle specific question text container
-                    const moodleQ = document.querySelector('.qtext');
-                    let mainText = moodleQ ? moodleQ.innerText.trim() : '';
-
-                    // Priority 2: Try common LMS question containers
-                    const qContainers = document.querySelectorAll('.que, .question, .form-question, .mc-question, .item-container');
-                    if (qContainers.length > 0) {
-                        const container = qContainers[0];
-                        if (!mainText) {
-                            // Extract main text while excluding sidebars
-                            const clone = container.cloneNode(true);
-                            clone.querySelectorAll('.info, .status, .grade, .question-number, .q-metadata, .answer, .ablock, .prompt').forEach(m => m.remove());
-                            mainText = clone.innerText.trim();
-                        }
-
-                        // NEW: Extract options/choices to provide full context
-                        const options = container.querySelectorAll('.answer, .ablock, .choice, .option, .choices');
-                        if (options.length > 0) {
-                            const optionList = Array.from(options[0].querySelectorAll('div, label, span'))
-                                .map(el => el.innerText.trim())
-                                .filter(t => t.length > 0 && !t.includes('Select one:') && !t.includes('Marked out of'));
-                            
-                            // Remove duplicates and keep only meaningful text
-                            const uniqueOptions = [...new Set(optionList)].slice(0, 10);
-                            if (uniqueOptions.length > 0) {
-                                mainText += "\nChoices:\n" + uniqueOptions.join('\n');
-                            }
-                        }
-                        return mainText;
-                    }
-                    
-                    // Fallback: search for main content area
-                    const main = document.querySelector('main, #main, #content, .content, #page-content, .region-main, #main-content');
-                    if (main) return main.innerText.trim();
-                    
-                    // Final fallback: body text but trim the very top
-                    return text.substring(Math.min(text.length, 300)).trim();
-                };
-
-                const qText = findQuestionText().substring(0, 2500);
-                const lc = text.toLowerCase();
-                // Count live answerable inputs
-                const answerableInputs = document.querySelectorAll(
-                    'input[type="radio"]:not([disabled]),input[type="checkbox"]:not([disabled])'
-                ).length;
-                // Detect finish button
-                const hasFinishBtn = Array.from(document.querySelectorAll('button,input[type="submit"],a')).some(b => {
-                    const t = (b.innerText || b.value || b.textContent || '').toLowerCase().trim();
-                    return (t.includes('finish') || t.includes('submit all')) &&
-                           (t.includes('attempt') || t.includes('quiz') || t.includes('exam') || t.includes('test') || t.length < 25);
-                });
-                return { text, qText, answerableInputs, hasFinishBtn };
-            }
+            func: extractPageQuestions
         });
 
         if (!extraction?.[0]?.result) throw new Error('Could not read exam page');
-        const { text: pageText, qText: extractedQuestionText, answerableInputs, hasFinishBtn } = extraction[0].result;
+        const { status, pageText, detectedQuestions, answerableInputsCount: answerableInputs, isPageLoading, isExamFinished, hasFinishBtn } = extraction[0].result;
 
-        const textSig = pageText.replace(/\d+/g, '').replace(/\s+/g, ' ').trim().substring(0, 2500);
-        const shouldSubmit = Date.now() - examModeStartTime >= EXAM_DURATION;
-
-        // Same page + cached answer → just re-click navigation
-        if (textSig === lastExamPageSignature && lastExamAnswer) {
-            await executeExamClicker(examModeTabId, lastExamAnswer, shouldSubmit, true, hasFinishBtn);
-            if (shouldSubmit) { examAppendMessage('⏱ Time up. Final submit sent.'); if (isExamMode) toggleExamMode(); return; }
-            if (isExamMode) examModeTimeout = setTimeout(runExamModeStep, 4000);
+        // ── 1. Check genuine exam completion ────────────────────────
+        if (status === 'finished') {
+            examAppendMessage('🎓 Exam completed! All submissions recorded successfully.');
+            if (isExamMode) toggleExamMode();
             return;
         }
 
-        // New page — ask AI (but first check QA training cache)
-        updateExamBannerStatus(examModeTabId, 'AI thinking…');
-        const isWatching = (currentActiveTabId === examModeTabId);
-        if (isWatching) showTypingIndicator('🎓 Exam Mode: Checking knowledge cache…');
-
-        // ── 1. Try QA cache first ──────────────────────────────
-        const questionForHash = extractedQuestionText || pageText.substring(0, 500);
-        const cachedQA = await lookupQACache(questionForHash);
-        if (cachedQA) {
-            if (isWatching) hideTypingIndicator();
-            const sourceLabel = cachedQA.source === 'admin' ? '✅ Verified' : `🧠 Trained (×${cachedQA.useCount})`;
-            let formattedAns = cachedQA.answer;
-            try { 
-                const parsed = JSON.parse(cachedQA.answer);
-                if (Array.isArray(parsed)) formattedAns = parsed.join(', ');
-            } catch(_) {}
-            const preview = formattedAns.length > 120 ? formattedAns.substring(0, 120) + '…' : formattedAns;
-            examAppendMessage(`⚡ Cache hit! ${sourceLabel} — Answer: ${preview}`);
-            examNoQuestionCount = 0;
-            lastExamPageSignature = textSig;
-            lastExamAnswer = cachedQA.answer;
-            updateExamBannerStatus(examModeTabId, 'Selecting (cached)…');
-            await executeExamClicker(examModeTabId, cachedQA.answer, shouldSubmit, true, hasFinishBtn);
-            if (shouldSubmit) { examAppendMessage('⏱ Time up. Final submit sent.'); if (isExamMode) toggleExamMode(); return; }
-            if (isExamMode) examModeTimeout = setTimeout(runExamModeStep, 4000);
+        // ── 2. Handle page still loading / transitioning ───────────
+        if (status === 'loading') {
+            updateExamBannerStatus(examModeTabId, 'Page loading… waiting');
+            if (isExamMode) examModeTimeout = setTimeout(runExamModeStep, 2000);
             return;
         }
 
-        // ── 2. Cache miss — call AI ────────────────────────────
-        const hasCapsules = (getCapsules() || []).length > 0;
-        if (isWatching) showTypingIndicator(hasCapsules ? '🎓 Checking Capsules…' : '🎓 Exam Mode: Analysing question…');
-
-        const activeProvider = getSelectedAIConfig().provider;
-        const isLocalAI = activeProvider === 'noora' || activeProvider === 'ollama_local';
-        const examLimit = isLocalAI ? 2400 : 12000;
-        const examInputText = (extractedQuestionText && extractedQuestionText.length > 20)
-            ? extractedQuestionText.substring(0, examLimit)
-            : pageText.replace(/\n\s*\n\s*\n+/g, '\n\n').trim().substring(0, examLimit);
-
-        // Check user's Capsule reference notes for verified facts across ALL capsules simultaneously
-        const capsuleLimit = isLocalAI ? 1200 : 8000;
-        const { context: capsuleContext } = getCapsuleReferenceData(examInputText, capsuleLimit, { checkAllCapsules: true });
-        let capsuleSection = '';
-        if (capsuleContext && capsuleContext.trim()) {
-            capsuleSection = `\n\n${capsuleContext}\n\nIMPORTANT: The above CAPSULE REFERENCE MATERIAL contains verified notes/facts from all your Capsules checked simultaneously. If any question relates to the Capsule material, strictly prioritize and select the answer matching the Capsule reference.\n`;
-            updateExamBannerStatus(examModeTabId, 'Checking Capsules…');
-            examAppendMessage('📚 Checking Capsules…');
-        }
-
-        const prompt = `You are an expert exam-answering assistant. Below is text from an online quiz/exam question.
-${capsuleSection}
-TASK:
-1. Find every visible multiple-choice or multi-select question.
-2. Pick the single best correct answer for each question. Verify facts using Capsule Reference Material if provided.
-3. Return ONLY a valid JSON array of exact answer texts, copied word-for-word from the page.
-4. Include NOTHING else — no explanations, numbers, or commentary.
-5. If the page has no answerable questions (result page, nav page), return: []
-
-IMPORTANT: Copy the answer text EXACTLY as it appears. Even minor differences will prevent selection.
-
-Page text:
-${examInputText}
-
-Respond with ONLY a JSON array, e.g.: ["True","Paris","All of the above"]`;
-
-        const aiRaw = await apiGenerateText(prompt);
-        if (isWatching) hideTypingIndicator();
-
-        if (!aiRaw?.trim() || aiRaw.trim() === '[]') {
-            examNoQuestionCount++;
-            examAppendMessage(`ℹ️ No questions detected. Trying navigation… (${examNoQuestionCount}/2)`);
-            await clickNextOrFinish(examModeTabId, shouldSubmit, hasFinishBtn);
-            if (examNoQuestionCount >= 2) {
-                examAppendMessage('🛑 No questions found after 2 attempts. Exam mode auto-stopped.');
-                if (isExamMode) toggleExamMode();
+        // ── 3. Handle temporary empty question detection ───────────
+        if (status === 'empty' || !detectedQuestions?.length) {
+            currentExamState.retryCount++;
+            if (currentExamState.retryCount <= 10) {
+                updateExamBannerStatus(examModeTabId, `Waiting for question to render… (${currentExamState.retryCount}/10)`);
+                if (isExamMode) examModeTimeout = setTimeout(runExamModeStep, 2500);
+                return;
+            } else {
+                // Do NOT spam duplicate notifications or auto-stop Exam Mode!
+                if (currentExamState.retryCount === 11) {
+                    examAppendMessage('⚠️ No question found. Exam Mode waiting in background. Please navigate to the question or select manually.');
+                }
+                updateExamBannerStatus(examModeTabId, '⚠️ Waiting for question');
+                if (isExamMode) examModeTimeout = setTimeout(runExamModeStep, 5000);
                 return;
             }
-        } else {
-            examNoQuestionCount = 0;
-            lastExamPageSignature = textSig;
-            lastExamAnswer = aiRaw;
-            // ── Save to QA training cache (fire-and-forget) ───
-            saveQACache(questionForHash, aiRaw, 70);
-
-            // Clean answers to prevent @@CODEBLOCK0@@ leaks
-            let parsedAnswers = [];
-            try {
-                const m = aiRaw.match(/\[[\s\S]*?\]/);
-                parsedAnswers = m ? JSON.parse(m[0]) : [aiRaw.trim()];
-            } catch(_) {
-                parsedAnswers = [aiRaw.trim()];
-            }
-            const cleanAnswers = parsedAnswers.map(ans => {
-                let s = String(ans || '').trim();
-                s = s.replace(/^```[^\n]*\n([\s\S]*?)\n?```$/g, '$1').trim();
-                s = s.replace(/^`+|`+$/g, '').trim();
-                s = s.replace(/@@CODEBLOCK\d+@@/g, '').trim();
-                return s;
-            }).filter(Boolean);
-
-            const displayAnswers = cleanAnswers.length > 0 ? cleanAnswers.join(', ') : aiRaw.trim();
-            const preview = displayAnswers.length > 120 ? displayAnswers.substring(0, 120) + '…' : displayAnswers;
-            examAppendMessage(`✅ Answer: ${preview}`);
-            updateExamBannerStatus(examModeTabId, 'Selecting…');
-            const answerForClicker = cleanAnswers.length > 0 ? JSON.stringify(cleanAnswers) : aiRaw;
-            await executeExamClicker(examModeTabId, answerForClicker, shouldSubmit, true, hasFinishBtn);
-            if (shouldSubmit) { examAppendMessage('⏱ Time up. Final submit sent.'); if (isExamMode) toggleExamMode(); return; }
         }
-        if (isExamMode) examModeTimeout = setTimeout(runExamModeStep, 4000);
+
+        // Questions successfully found! Reset retry count
+        currentExamState.retryCount = 0;
+
+        // ── 4. Question Signature & State Flow ─────────────────────
+        const detectedQuestionId = `${(tab.url || '').split('?')[0]}::${detectedQuestions.map(q => `${q.stem.substring(0, 100)}::${q.options.map(o => o.text).join('|')}`).join(';;')}`;
+        const shouldSubmit = Date.now() - examModeStartTime >= EXAM_DURATION;
+
+        if (currentExamState.answeredQuestionIds && currentExamState.answeredQuestionIds.has(detectedQuestionId)) {
+            // Already answered and selected! Wait for page transition to next question.
+            currentExamState.waitingNextCount = (currentExamState.waitingNextCount || 0) + 1;
+            if (currentExamState.waitingNextCount >= 2) {
+                updateExamBannerStatus(examModeTabId, 'Advancing to next question…');
+                const nextRes = await clickNextOrFinish(examModeTabId, shouldSubmit, hasFinishBtn, true);
+                if (nextRes?.navigated) {
+                    currentExamState.waitingNextCount = 0;
+                    examAppendMessage('🎯 Next button re-triggered. Moving to next question…');
+                }
+            } else {
+                updateExamBannerStatus(examModeTabId, 'Waiting for next question…');
+            }
+            if (isExamMode) examModeTimeout = setTimeout(runExamModeStep, 2000);
+            return;
+        }
+
+        if (detectedQuestionId === currentExamState.questionId && currentExamState.step === 'WAITING_NEXT') {
+            currentExamState.waitingNextCount = (currentExamState.waitingNextCount || 0) + 1;
+            if (currentExamState.waitingNextCount >= 2) {
+                updateExamBannerStatus(examModeTabId, 'Advancing to next question…');
+                const nextRes = await clickNextOrFinish(examModeTabId, shouldSubmit, hasFinishBtn, true);
+                if (nextRes?.navigated) {
+                    currentExamState.waitingNextCount = 0;
+                    examAppendMessage('🎯 Next button re-triggered. Moving to next question…');
+                }
+            } else {
+                updateExamBannerStatus(examModeTabId, 'Waiting for next question…');
+            }
+            if (isExamMode) examModeTimeout = setTimeout(runExamModeStep, 2500);
+            return;
+        }
+
+        // NEW QUESTION DETECTED!
+        currentExamState.waitingNextCount = 0;
+        currentExamState.step = 'DETECTED';
+        currentExamState.questionId = detectedQuestionId;
+        currentExamState.questionIndex++;
+        currentExamState.extractedQuestions = detectedQuestions;
+        currentExamState.validatedAnswers = [];
+        currentExamState.lastActionTime = Date.now();
+
+        updateExamBannerStatus(examModeTabId, 'AI thinking…');
+        const isWatching = (currentActiveTabId === examModeTabId);
+        if (isWatching) showTypingIndicator('🎓 Exam Mode: Analysing question & choices…');
+
+        // ── 5. Try QA Cache first (only when Capsule is not active) ──
+        const capsules = getCapsules();
+        const isCapsuleActive = capsules.length > 0;
+        let capsuleSection = '';
+        let retrievedSources = [];
+
+        if (!isCapsuleActive) {
+            const cachedQA = await lookupQACache(detectedQuestionId);
+            if (cachedQA) {
+                if (isWatching) hideTypingIndicator();
+                const sourceLabel = cachedQA.source === 'admin' ? '✅ Verified' : `🧠 Trained (×${cachedQA.useCount})`;
+                let formattedAns = cachedQA.answer;
+                try { 
+                    const parsed = JSON.parse(cachedQA.answer);
+                    if (Array.isArray(parsed)) formattedAns = parsed.join(', ');
+                } catch(_) {}
+                examAppendMessage(`⚡ Cache hit! ${sourceLabel} — Answer: ${formattedAns}`);
+                updateExamBannerStatus(examModeTabId, 'Selecting (cached)…');
+
+                const clickRes = await executeExamClicker(examModeTabId, cachedQA.answer, shouldSubmit, true, hasFinishBtn);
+                if (clickRes?.success) {
+                    currentExamState.step = 'WAITING_NEXT';
+                    lastExamSelectionSucceeded = true;
+                    if (shouldSubmit) { examAppendMessage('⏱ Time up. Final submit sent.'); if (isExamMode) toggleExamMode(); return; }
+                    if (clickRes.navigated) {
+                        examAppendMessage('🎯 Answer confirmed and applied! Moving to next question…');
+                        if (isExamMode) examModeTimeout = setTimeout(runExamModeStep, 4000);
+                    } else {
+                        if (isExamMode) examModeTimeout = setTimeout(runExamModeStep, 3000);
+                    }
+                    return;
+                }
+            }
+        }
+
+        // ── 6. Check Capsule Reference Material (Optional Knowledge Grounding) ────
+        const activeProvider = getSelectedAIConfig().provider;
+        const isLocalAI = activeProvider === 'noora' || activeProvider === 'ollama_local';
+        const capsuleLimit = isLocalAI ? 1200 : 8000;
+        const fullPromptText = detectedQuestions.map(q => `${q.stem}\n${q.options.map(o => `[${o.letter}] ${o.text}`).join('\n')}`).join('\n\n');
+
+        let capsuleUsed = false;
+        if (isCapsuleActive) {
+            let ragResult = null;
+            if (currentExamState.capsuleCheckCache && currentExamState.capsuleCheckCache.has(detectedQuestionId)) {
+                ragResult = currentExamState.capsuleCheckCache.get(detectedQuestionId);
+            } else {
+                if (!currentExamState.notifiedQuestionIds || !currentExamState.notifiedQuestionIds.has(detectedQuestionId)) {
+                    updateExamBannerStatus(examModeTabId, 'Checking Capsules…');
+                    examAppendMessage('📚 Checking Capsules…');
+                    if (!currentExamState.notifiedQuestionIds) currentExamState.notifiedQuestionIds = new Set();
+                    currentExamState.notifiedQuestionIds.add(detectedQuestionId);
+                }
+                try {
+                    ragResult = getCapsuleReferenceData(fullPromptText, capsuleLimit);
+                } catch (err) {
+                    ragResult = { context: '', sources: [], hasSufficientEvidence: false };
+                }
+                if (!currentExamState.capsuleCheckCache) currentExamState.capsuleCheckCache = new Map();
+                currentExamState.capsuleCheckCache.set(detectedQuestionId, ragResult);
+            }
+
+            retrievedSources = ragResult?.sources || [];
+
+            if (ragResult?.hasSufficientEvidence && ragResult?.context) {
+                capsuleUsed = true;
+                capsuleSection = `\n\n${ragResult.context}\n\nCRITICAL CAPSULE RULE:\nUse the verified Capsule reference notes above as your primary source of truth. Ground your answer strictly in these references. If a choice is supported by the Capsule reference notes, you MUST choose that choice.\n`;
+            } else {
+                // FALLBACK: Capsule does not contain sufficient information or failed.
+                // Do NOT block Exam Mode! Seamlessly continue to the existing configured AI model.
+                if (!currentExamState.fallbackNotifiedQuestionIds) currentExamState.fallbackNotifiedQuestionIds = new Set();
+                if (!currentExamState.fallbackNotifiedQuestionIds.has(detectedQuestionId)) {
+                    currentExamState.fallbackNotifiedQuestionIds.add(detectedQuestionId);
+                    examAppendMessage('ℹ️ Selected Capsule does not contain enough information for this question — continuing with AI model.');
+                }
+                updateExamBannerStatus(examModeTabId, 'AI thinking…');
+                capsuleSection = '';
+            }
+        }
+
+        // ── Priority 2: Intelligent Web Search Check ──────────────────
+        // Only trigger if Capsule was NOT used (absent or insufficient) and Web Search is enabled.
+        // Independent per-question search, cached in currentExamState.webSearchCache to avoid duplicate searches within same step.
+        let webSearchUsed = false;
+        let webResults = [];
+        let webSearchSection = '';
+
+        if (!capsuleUsed && isWebSearchEnabled()) {
+            const searchMode = getWebSearchMode();
+            const questionToSearch = detectedQuestions[0];
+            const queryText = questionToSearch ? questionToSearch.stem : detectedQuestions.map(q => q.stem).join(' ');
+
+            if (shouldPerformWebSearch(queryText, { isCapsuleSufficient: false, searchMode })) {
+                if (!currentExamState.webSearchCache) currentExamState.webSearchCache = new Map();
+                if (!currentExamState.webSearchNotifiedQuestionIds) currentExamState.webSearchNotifiedQuestionIds = new Set();
+
+                let searchRes = currentExamState.webSearchCache.get(detectedQuestionId);
+                if (!searchRes) {
+                    if (!currentExamState.webSearchNotifiedQuestionIds.has(detectedQuestionId)) {
+                        currentExamState.webSearchNotifiedQuestionIds.add(detectedQuestionId);
+                        examAppendMessage('🌐 Searching web for reliable evidence…');
+                    }
+                    updateExamBannerStatus(examModeTabId, 'Searching web…');
+                    try {
+                        searchRes = await performWebSearch(queryText, { questionOptions: questionToSearch?.options });
+                        if (searchRes) {
+                            currentExamState.webSearchCache.set(detectedQuestionId, searchRes);
+                        }
+                    } catch (_) {}
+                }
+
+                if (searchRes?.success && searchRes?.results?.length > 0) {
+                    webSearchUsed = true;
+                    webResults = searchRes.results;
+                    webSearchSection = `\n\n${formatWebSearchContext(webResults, queryText)}\n\nCRITICAL SEARCH RULE:\nUse the web search evidence above to determine the most accurate answer strictly from the Available Choices.\n`;
+                }
+            }
+        }
+
+        // ── 7. Build AI Prompt (Strictly Constrained to Real Choices) ─
+        const questionsPromptBlock = detectedQuestions.map((q, idx) => {
+            let out = `Question ${idx + 1}: ${q.stem}\nType: ${q.type}\nAvailable Choices:`;
+            q.options.forEach(opt => {
+                out += `\n  [${opt.letter}] ${opt.text}`;
+            });
+            return out;
+        }).join('\n\n');
+
+        const prompt = `You are an expert exam-answering assistant.
+Analyze the following quiz question and choose the correct answer strictly from the Available Choices provided below.
+${capsuleSection}
+${webSearchSection}
+${questionsPromptBlock}
+
+CRITICAL RULES:
+1. Choose the correct answer strictly from the Available Choices provided above.
+2. Do NOT invent, assume, or output any option not listed in the Available Choices.
+3. Return ONLY a valid JSON array containing the chosen option letter and its exact text from the Available Choices in order of the questions.
+   Format: ["Letter. Actual Option Text"]
+   Example format: ["${detectedQuestions[0]?.options[0]?.letter || 'A'}. ${detectedQuestions[0]?.options[0]?.text ? detectedQuestions[0].options[0].text.replace(/"/g, "'").slice(0, 40) : 'Actual option text'}"]
+   For multiple-select checkboxes, include all correct choices: ["A. ...", "B. ..."]
+   Do NOT return dummy words like "Option Text" — always use the real text from the choices above.
+4. Include NOTHING else — no explanations, commentary, or markdown fences.`;
+
+        let aiRaw = await apiGenerateText(prompt);
+        if (isWatching) hideTypingIndicator();
+
+        if (webSearchUsed && webResults.length > 0) {
+            const verified = verifyAnswerAgainstAuthoritativeSources(aiRaw, queryText, webResults);
+            if (verified && verified.answer) {
+                aiRaw = verified.answer;
+            }
+        }
+
+        if (!aiRaw?.trim() || aiRaw.trim() === '[]') {
+            examAppendMessage('⚠️ AI could not determine the answer from the available options. Please select your answer manually.');
+            updateExamBannerStatus(examModeTabId, '⚠️ Select manually');
+            if (isExamMode) examModeTimeout = setTimeout(runExamModeStep, 6000);
+            return;
+        }
+
+        // ── 8. Parse AI Answers & Validate Against Real Options ────
+        const parsedAnswers = parseAiExamAnswers(aiRaw, detectedQuestions.length);
+        const validatedList = [];
+        let allMatched = true;
+
+        if (detectedQuestions.length === 1) {
+            const question = detectedQuestions[0];
+            const isSingle = question.type === 'single' || question.type === 'truefalse';
+
+            if (isSingle) {
+                let bestOpt = null;
+                let bestScore = 0;
+                for (const rawAns of parsedAnswers) {
+                    for (const opt of question.options) {
+                        const sc = scoreOptionMatch(opt.text, opt.value, opt.letter, rawAns, opt.index, question.options.length);
+                        if (sc > bestScore && sc >= 75) {
+                            bestScore = sc;
+                            bestOpt = opt;
+                        }
+                    }
+                }
+                if (bestOpt) {
+                    validatedList.push({
+                        questionIndex: 1,
+                        letter: bestOpt.letter,
+                        text: bestOpt.text,
+                        fullDisplay: `${bestOpt.letter}. ${bestOpt.text}`,
+                        id: bestOpt.id,
+                        value: bestOpt.value
+                    });
+                } else {
+                    allMatched = false;
+                    examAppendMessage(`⚠️ Could not validate answer against available options for Question 1.`);
+                }
+            } else {
+                // Multi-select checkbox question
+                const seenOptIds = new Set();
+                for (const rawAns of parsedAnswers) {
+                    let bestOpt = null;
+                    let bestScore = 0;
+                    for (const opt of question.options) {
+                        if (seenOptIds.has(opt.id || opt.letter)) continue;
+                        const sc = scoreOptionMatch(opt.text, opt.value, opt.letter, rawAns, opt.index, question.options.length);
+                        if (sc > bestScore && sc >= 75) {
+                            bestScore = sc;
+                            bestOpt = opt;
+                        }
+                    }
+                    if (bestOpt) {
+                        seenOptIds.add(bestOpt.id || bestOpt.letter);
+                        validatedList.push({
+                            questionIndex: 1,
+                            letter: bestOpt.letter,
+                            text: bestOpt.text,
+                            fullDisplay: `${bestOpt.letter}. ${bestOpt.text}`,
+                            id: bestOpt.id,
+                            value: bestOpt.value
+                        });
+                    }
+                }
+                if (validatedList.length === 0) {
+                    allMatched = false;
+                    examAppendMessage(`⚠️ Could not validate answers against available options for Question 1.`);
+                }
+            }
+        } else {
+            // Multi-question page: match each question 1:1
+            for (let qIdx = 0; qIdx < detectedQuestions.length; qIdx++) {
+                const question = detectedQuestions[qIdx];
+                const rawAns = parsedAnswers[qIdx];
+                if (!rawAns) { allMatched = false; continue; }
+
+                let bestOpt = null;
+                let bestScore = 0;
+                for (const opt of question.options) {
+                    const sc = scoreOptionMatch(opt.text, opt.value, opt.letter, rawAns, opt.index, question.options.length);
+                    if (sc > bestScore && sc >= 75) {
+                        bestScore = sc;
+                        bestOpt = opt;
+                    }
+                }
+
+                if (bestOpt) {
+                    validatedList.push({
+                        questionIndex: qIdx + 1,
+                        letter: bestOpt.letter,
+                        text: bestOpt.text,
+                        fullDisplay: `${bestOpt.letter}. ${bestOpt.text}`,
+                        id: bestOpt.id,
+                        value: bestOpt.value
+                    });
+                } else {
+                    allMatched = false;
+                    examAppendMessage(`⚠️ Could not validate answer "${rawAns}" against available options for Question ${qIdx + 1}.`);
+                }
+            }
+        }
+
+        // ── 9. Strict Validation Enforcement ───────────────────────
+        if (!validatedList.length || !allMatched) {
+            currentExamState.step = 'UNMATCHED';
+            examAppendMessage('⚠️ Answer validation failed. Please select your answer manually on the exam page before continuing.');
+            updateExamBannerStatus(examModeTabId, '⚠️ Select manually');
+            if (isExamMode) examModeTimeout = setTimeout(runExamModeStep, 6000);
+            return;
+        }
+
+        // ── 10. Display Clean Answer, Confidence Score & Execute Selection ──
+        const displayAnswers = validatedList.map(v => v.fullDisplay).join(', ');
+
+        let examConflictCheck = null;
+        if (webSearchUsed && webResults.length > 1) {
+            examConflictCheck = detectConflictingInformation(webResults, detectedQuestions[0]?.stem || '', displayAnswers);
+        }
+
+        const examConfidence = calculateAnswerConfidence({
+            answerText: displayAnswers,
+            selectedOption: validatedList[0],
+            capsuleRelevance: {
+                hasSufficientEvidence: capsuleUsed,
+                sources: retrievedSources,
+                grounded: capsuleUsed
+            },
+            webSearchResults: webResults,
+            webSearchUsed,
+            capsuleUsed,
+            isWebSearchEnabled: isWebSearchEnabled(),
+            optionMatchScore: 100, // all options in validatedList passed >= 75 validation
+            isSingleChoiceWinner: true,
+            hasConflictingSources: Boolean(examConflictCheck?.hasConflict),
+            searchFailed: false
+        });
+
+        examAppendMessage(`✅ Correct Answer: ${displayAnswers}\n📊 AI Confidence: ${examConfidence.percentage}% – ${examConfidence.level}\nEvidence: ${examConfidence.evidenceSource}${examConfidence.sourceCount > 0 ? ` • Sources: ${examConfidence.sourceCount} verified reference${examConfidence.sourceCount > 1 ? 's' : ''}` : ''}\nℹ️ ${examConfidence.explanation}`);
+
+        if (isCapsuleActive && capsuleUsed && retrievedSources.length > 0) {
+            for (const v of validatedList) {
+                const ver = verifyAnswerAgainstSources(v.fullDisplay, v.text, retrievedSources);
+                if (ver.grounded && ver.verifiedSource) {
+                    examAppendMessage(`📚 Verified by Capsule: ${ver.verifiedSource.name}${ver.verifiedSource.heading ? ` (${ver.verifiedSource.heading})` : ''}`);
+                }
+            }
+        } else if (webSearchUsed && webResults.length > 0) {
+            if (!currentExamState.webSourcesNotifiedQuestionIds) currentExamState.webSourcesNotifiedQuestionIds = new Set();
+            if (!currentExamState.webSourcesNotifiedQuestionIds.has(detectedQuestionId)) {
+                currentExamState.webSourcesNotifiedQuestionIds.add(detectedQuestionId);
+                const topSources = webResults.slice(0, 3).map(r => `[${r.title || r.url}](${r.url})`).join(' • ');
+                examAppendMessage(`🌐 Verified by Web Search: ${topSources}`);
+            }
+        }
+
+        updateExamBannerStatus(examModeTabId, `Answer: ${displayAnswers} (${examConfidence.percentage}% ${examConfidence.level})`);
+        saveQACache(detectedQuestionId, JSON.stringify(validatedList.map(v => v.fullDisplay)), 70);
+
+        const answerForClicker = JSON.stringify(validatedList.map(v => v.fullDisplay));
+        const clickRes = await executeExamClicker(examModeTabId, answerForClicker, shouldSubmit, true, hasFinishBtn);
+
+        if (!clickRes?.success) {
+            currentExamState.step = 'SELECTION_FAILED';
+            lastExamSelectionSucceeded = false;
+            examAppendMessage('⚠️ Could not automatically select the answer on the page. Please select your answer manually on the exam page before continuing.');
+            updateExamBannerStatus(examModeTabId, '⚠️ Select manually');
+            if (isExamMode) examModeTimeout = setTimeout(runExamModeStep, 5000);
+            return;
+        }
+
+        // Selection succeeded!
+        currentExamState.step = 'WAITING_NEXT';
+        if (currentExamState.answeredQuestionIds) {
+            currentExamState.answeredQuestionIds.add(detectedQuestionId);
+        }
+        lastExamSelectionSucceeded = true;
+
+        if (shouldSubmit) { examAppendMessage('⏱ Time up. Final submit sent.'); if (isExamMode) toggleExamMode(); return; }
+
+        if (clickRes.navigated) {
+            examAppendMessage(`🎯 Answer selected & confirmed (${clickRes.selectedCount} option${clickRes.selectedCount > 1 ? 's' : ''}). Moving to next question…`);
+            if (isExamMode) examModeTimeout = setTimeout(runExamModeStep, 4000);
+        } else {
+            examAppendMessage(`🎯 Answer selected & confirmed (${clickRes.selectedCount} option${clickRes.selectedCount > 1 ? 's' : ''}).`);
+            if (isExamMode) examModeTimeout = setTimeout(runExamModeStep, 3000);
+        }
 
     } catch(err) {
         const msg = err?.message || String(err);
-        // Stop immediately on tab/permission errors or unscriptable pages — do not retry in an infinite loop
         if (
             msg.includes('tabId') || 
             msg.includes('No tab') || 
@@ -3584,6 +4352,8 @@ Respond with ONLY a JSON array, e.g.: ["True","Paris","All of the above"]`;
         }
         examAppendMessage(`⚠️ Error: ${sanitize(msg)} — Retrying…`);
         if (isExamMode) examModeTimeout = setTimeout(runExamModeStep, 5000);
+    } finally {
+        currentExamState.isProcessing = false;
     }
 }
 
@@ -3598,188 +4368,563 @@ function updateExamBannerStatus(tabId, status) {
 
 // ── Core exam clicker ─────────────────────────────────────────
 async function executeExamClicker(tabId, answerText, shouldSubmit, isDelayEnabled, hasFinishBtn, autoNavigate = true) {
-    if (typeof tabId !== 'number') return;
-    await chrome.scripting.executeScript({
-        target: { tabId },
-        args: [answerText, shouldSubmit, isDelayEnabled, hasFinishBtn, autoNavigate],
-        func: (answerText, shouldSubmit, isDelayEnabled, hasFinishBtn, autoNavigate) => {
+    if (typeof tabId !== 'number') return { success: false, selectedCount: 0, navigated: false, error: 'Invalid tab ID' };
+    try {
+        const injection = await chrome.scripting.executeScript({
+            target: { tabId },
+            args: [answerText, shouldSubmit, isDelayEnabled, hasFinishBtn, autoNavigate],
+            func: async (answerText, shouldSubmit, isDelayEnabled, hasFinishBtn, autoNavigate) => {
 
-            // ── Parse JSON answer array from AI ──────────────
-            let aiAnswers = [];
-            try {
-                const m = answerText.match(/\[[\s\S]*?\]/);
-                aiAnswers = m ? JSON.parse(m[0]) : [answerText];
-            } catch(_) { aiAnswers = [answerText]; }
-            aiAnswers = aiAnswers.map(ans => {
-                let s = String(ans || '').trim();
-                s = s.replace(/@@CODEBLOCK\d+@@/g, '').trim();
-                s = s.replace(/^```[^\n]*\n([\s\S]*?)\n?```$/g, '$1').trim();
-                s = s.replace(/^`+|`+$/g, '').trim();
-                s = s.replace(/^[\*\-_•\d+\.]+\s*/, '').trim();
-                return s;
-            }).filter(a => typeof a === 'string' && a.trim().length > 0);
+                // ── Parse AI answers ──────────────────────────
+                function parseAnswers(raw) {
+                    if (!raw) return [];
+                    let clean = String(raw).trim();
+                    clean = clean.replace(/```(?:json)?([\s\S]*?)```/gi, '$1').trim();
+                    clean = clean.replace(/^`+|`+$/g, '').trim();
+                    clean = clean.replace(/@@CODEBLOCK\d+@@/g, '').trim();
 
-            // ── Fire all events frameworks need ──────────────
-            function fire(el) {
-                ['mousedown','mouseup','click'].forEach(type =>
-                    el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true }))
-                );
-                el.dispatchEvent(new Event('change', { bubbles: true }));
-                el.dispatchEvent(new Event('input',  { bubbles: true }));
-            }
+                    try {
+                        const m = clean.match(/\[[\s\S]*?\]/);
+                        if (m) {
+                            const parsed = JSON.parse(m[0]);
+                            if (Array.isArray(parsed) && parsed.length > 0) {
+                                if (typeof parsed[0] === 'object' && parsed[0] !== null) {
+                                    return parsed.map(item => item.answer || item.option || item.value || JSON.stringify(item)).map(String);
+                                }
+                                if (parsed.length === 1 && typeof parsed[0] === 'string' && parsed[0].includes(',')) {
+                                    return parsed[0].split(',').map(s => s.trim()).filter(Boolean);
+                                }
+                                return parsed.map(s => String(s || '').trim()).filter(Boolean);
+                            }
+                        }
+                    } catch (_) {}
 
-            // ── Text similarity score (0-100) ────────────────
-            function score(a, b) {
-                a = a.trim().toLowerCase().replace(/\s+/g, ' ');
-                b = b.trim().toLowerCase().replace(/\s+/g, ' ');
-                if (!a || !b) return 0;
-                if (a === b) return 100;
-                // Remove common prefixes like "a.", "b)", "1.", "a - " from the start of strings
-                const cleanPrefix = (str) => str.replace(/^[a-z0-9][\.\-\)]\s+/i, '');
-                const ca = cleanPrefix(a), cb = cleanPrefix(b);
-                if (ca === cb) return 100;
-                
-                // If one string strictly contains the other, give a high score
-                if (ca.includes(cb) || cb.includes(ca)) return 85;
-                
-                // Word overlap fallback
-                const wa = new Set(ca.split(' ')), wb = cb.split(' ');
-                const overlap = wb.filter(w => w.length > 2 && wa.has(w)).length;
-                return overlap > 0 ? Math.floor((overlap / Math.max(wa.size, wb.length)) * 85) : 0;
-            }
+                    try {
+                        const objMatch = clean.match(/\{[\s\S]*?\}/);
+                        if (objMatch) {
+                            const parsed = JSON.parse(objMatch[0]);
+                            if (typeof parsed === 'object' && parsed !== null) {
+                                const keys = Object.keys(parsed).sort((a, b) => {
+                                    const numA = parseInt(a.replace(/\D/g, '') || '0', 10);
+                                    const numB = parseInt(b.replace(/\D/g, '') || '0', 10);
+                                    return numA - numB;
+                                });
+                                if (keys.length > 0) {
+                                    return keys.map(k => String(parsed[k] || '').trim()).filter(Boolean);
+                                }
+                            }
+                        }
+                    } catch (_) {}
 
-            // ── Select answers ────────────────────────────────
-            aiAnswers.forEach(ans => {
-                const clean = ans.trim();
-                if (!clean) return;
+                    const numberedLines = clean.split('\n').map(l => l.trim()).filter(Boolean);
+                    const numberedMatches = [];
+                    for (const line of numberedLines) {
+                        const m = line.match(/^(?:Q\d+[:.]?|\d+[\.\:\)\-]\s*)(.+)$/i);
+                        if (m) numberedMatches.push(m[1].trim());
+                    }
+                    if (numberedMatches.length > 0) return numberedMatches;
 
-                // Strategy A: radio/checkbox with label
-                const inputs = Array.from(document.querySelectorAll(
-                    'input[type="radio"]:not([disabled]),input[type="checkbox"]:not([disabled])'
-                ));
-                let best = null, bestScore = 0;
-                inputs.forEach(inp => {
-                    const forLabel = inp.id ? document.querySelector(`label[for="${CSS.escape(inp.id)}"]`) : null;
-                    const wrapLabel = inp.closest('label');
-                    const nearLabel = inp.parentElement;
-                    const labelEl = forLabel || wrapLabel || nearLabel;
-                    const labelTxt = (labelEl?.innerText || labelEl?.textContent || '').trim();
-                    const valTxt   = (inp.value || '').trim();
-                    const sc = Math.max(score(labelTxt, clean), score(valTxt, clean));
-                    if (sc > bestScore) { bestScore = sc; best = inp; }
-                });
-                if (best && bestScore >= 65) {
-                    if (!best.checked) { best.checked = true; fire(best); }
-                    return; // matched — move to next answer
+                    clean = clean.replace(/^(?:✅\s*)?(?:answer|answers|correct answer)[:\s]*/i, '').trim();
+
+                    if (clean.includes(',')) {
+                        const parts = clean.split(',').map(s => s.trim()).filter(Boolean);
+                        if (parts.length > 1) return parts;
+                    }
+
+                    if (clean.length > 0 && clean !== '[]') return [clean];
+                    return [];
                 }
 
-                // Strategy B: clickable divs/spans/li (Moodle, Canvas, Kahoot, Google Forms…)
-                const selectors = [
-                    'label',
-                    'div[class*="answer"]', 'div[class*="option"]', 'div[class*="choice"]',
-                    'span[class*="option"]', 'span[class*="answer"]',
-                    'li[class*="answer"]', 'li[class*="option"]',
-                    'div[role="radio"]', 'div[role="option"]', 'div[role="checkbox"]',
-                    '[data-answer]', '[data-option]', '[data-choice]',
-                    'td[class*="answer"]', 'td[class*="option"]'
+                const aiAnswers = parseAnswers(answerText);
+                if (!aiAnswers.length) {
+                    return { success: false, selectedCount: 0, navigated: false, error: 'Empty answer text provided' };
+                }
+
+                // ── Normalization & matching helpers ──────────
+                function isElementVisible(el) {
+                    if (!el) return false;
+                    if (el.offsetParent === null && el.tagName !== 'BODY') return false;
+                    const style = window.getComputedStyle(el);
+                    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
+                    if (el.getAttribute('aria-hidden') === 'true') return false;
+                    const rect = el.getBoundingClientRect();
+                    if (rect.width === 0 && rect.height === 0) return false;
+                    if (el.closest('[hidden], .hidden, .hide, .d-none, [aria-hidden="true"], [style*="display: none"], [style*="display:none"], [style*="visibility: hidden"], [style*="visibility:hidden"]')) return false;
+                    return true;
+                }
+
+                function cleanText(str) {
+                    return String(str || '')
+                        .toLowerCase()
+                        .replace(/&nbsp;/g, ' ')
+                        .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                }
+
+                function parseTargetAnswer(targetAns) {
+                    if (!targetAns) return { letter: null, text: '', cleanStem: '', isPureLetter: false, raw: '' };
+                    const raw = String(targetAns || '').trim();
+                    const unquoted = raw.replace(/^\[\s*["']?|["']?\s*\]$/g, '').replace(/^["']|["']$/g, '').trim();
+                    const prefixMatch = unquoted.match(/^(?:(?:option|choice)\s+)?(?:\[|\()?([a-hA-H1-9])(?:[\.\)\:\s\]\-]+|$)(.*)$/i);
+                    let letter = null;
+                    let text = unquoted;
+                    let hasExplicitLetter = false;
+
+                    if (prefixMatch) {
+                        letter = prefixMatch[1].toUpperCase();
+                        text = prefixMatch[2].trim();
+                        hasExplicitLetter = true;
+                    } else if (/^[a-hA-H1-9]$/i.test(unquoted)) {
+                        letter = unquoted.toUpperCase();
+                        text = '';
+                        hasExplicitLetter = true;
+                    }
+
+                    let cleanStem = cleanText(text).replace(/^[a-z0-9]\s+/, '').trim();
+
+                    // Neutralize generic prompt placeholders so they match by letter
+                    const isGenericPlaceholder = /^(?:option\s*text|choice\s*text|option\s*\d+|choice\s*\d+|option\s*[a-h]|choice\s*[a-h]|first\s*option|second\s*option|third\s*option|fourth\s*option|option|choice)$/i.test(cleanStem);
+                    if (isGenericPlaceholder) {
+                        cleanStem = '';
+                        text = '';
+                    }
+
+                    const isPureLetter = hasExplicitLetter && cleanStem.length === 0;
+
+                    return { letter, text, cleanStem, isPureLetter, raw };
+                }
+
+                function isTrueVariant(str) {
+                    const s = cleanText(str);
+                    return s === 'true' || s === 't' || s === 'yes' || s === 'y' || s === '1' || s === 'correct';
+                }
+
+                function isFalseVariant(str) {
+                    const s = cleanText(str);
+                    return s === 'false' || s === 'f' || s === 'no' || s === 'n' || s === '0' || s === 'incorrect';
+                }
+
+                function scoreOptionMatch(candidateText, candidateValue, candidateLetter, targetAns, optIndex, totalOptionsInGroup) {
+                    if (!targetAns) return 0;
+
+                    const parsed = parseTargetAnswer(targetAns);
+                    const cTextClean = cleanText(candidateText);
+                    const cValClean = cleanText(candidateValue);
+                    const cStem = cTextClean.replace(/^[a-z0-9]\s+/, '').trim();
+
+                    // 1. True / False normalization
+                    const targetIsTrue = isTrueVariant(targetAns) || isTrueVariant(parsed.cleanStem);
+                    const targetIsFalse = isFalseVariant(targetAns) || isFalseVariant(parsed.cleanStem);
+                    const candidateIsTrue = isTrueVariant(candidateText) || isTrueVariant(candidateValue);
+                    const candidateIsFalse = isFalseVariant(candidateText) || isFalseVariant(candidateValue);
+
+                    if (targetIsTrue && candidateIsTrue) return 100;
+                    if (targetIsFalse && candidateIsFalse) return 100;
+                    if ((targetIsTrue && candidateIsFalse) || (targetIsFalse && candidateIsTrue)) return 0;
+
+                    // 2. Exact match of candidate text/value with raw target or parsed stem
+                    if (cStem && parsed.cleanStem && cStem === parsed.cleanStem) return 100;
+                    if (cTextClean && (cTextClean === cleanText(targetAns) || cTextClean === parsed.cleanStem)) return 100;
+                    if (cValClean && (cValClean === cleanText(targetAns) || cValClean === parsed.cleanStem)) return 100;
+
+                    // 3. Pure letter matching (when target has NO conflicting text, e.g. "B" or "B.")
+                    const optLetter = candidateLetter ? String(candidateLetter).toUpperCase() : null;
+                    if (parsed.isPureLetter && parsed.letter) {
+                        if (optLetter && optLetter === parsed.letter) return 96;
+                        const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+                        const targetIdx = letters.indexOf(parsed.letter);
+                        if (targetIdx !== -1 && targetIdx === optIndex) return 92;
+                        return 0; // Pure letter target does NOT match other letters
+                    }
+
+                    // 4. Target has substantive text: Verify text match!
+                    // NEVER allow a letter-match to override contradictory text!
+                    if (parsed.cleanStem && parsed.cleanStem.length >= 3) {
+                        if (!cStem) return 0;
+
+                        // Exact stem match
+                        if (cStem === parsed.cleanStem) return 100;
+
+                        // Substring containment with length ratio check
+                        if (cStem.includes(parsed.cleanStem) || parsed.cleanStem.includes(cStem)) {
+                            const minLen = Math.min(cStem.length, parsed.cleanStem.length);
+                            const maxLen = Math.max(cStem.length, parsed.cleanStem.length);
+                            const lenRatio = minLen / maxLen;
+                            if (lenRatio >= 0.75) {
+                                if (optLetter && parsed.letter && optLetter === parsed.letter) return 95;
+                                return 88;
+                            }
+                        }
+
+                        // Token overlap with strict threshold (must share >= 80% words)
+                        const cWords = cStem.split(' ').filter(w => w.length > 2);
+                        const tWords = parsed.cleanStem.split(' ').filter(w => w.length > 2);
+                        if (cWords.length > 0 && tWords.length > 0) {
+                            const cWordSet = new Set(cWords);
+                            const matchedCount = tWords.filter(w => cWordSet.has(w)).length;
+                            const overlapRatio = matchedCount / Math.max(cWordSet.size, tWords.length);
+                            if (overlapRatio >= 0.8) {
+                                return Math.floor(overlapRatio * 85);
+                            }
+                        }
+
+                        // Text completely disagrees! Return 0 even if letters match!
+                        return 0;
+                    }
+
+                    return 0;
+                }
+
+                function dispatchSelectionEvents(el) {
+                    const events = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'];
+                    for (const evt of events) {
+                        el.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
+                    }
+                    el.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                    el.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                }
+
+                function isElementSelected(el, inputEl) {
+                    if (inputEl && (inputEl.checked || inputEl.getAttribute('aria-checked') === 'true')) return true;
+                    if (el.getAttribute('aria-checked') === 'true') return true;
+                    if (el.getAttribute('aria-selected') === 'true') return true;
+                    const cls = String(el.className || '').toLowerCase();
+                    if (cls.includes('checked') || cls.includes('selected') || cls.includes('active') || cls.includes('is-selected')) return true;
+                    const parentRole = el.closest('[role="radio"], [role="checkbox"]');
+                    if (parentRole && parentRole.getAttribute('aria-checked') === 'true') return true;
+                    return false;
+                }
+
+                const escapeSelector = (id) => (typeof CSS !== 'undefined' && typeof CSS.escape === 'function')
+                    ? CSS.escape(id)
+                    : String(id).replace(/([ #;?%&,.+*~':"!^$[\]()=>|/@\\])/g, '\\$1');
+
+                function isControlElement(el) {
+                    if (!el) return false;
+                    const cls = ((el.className || '') + ' ' + (el.parentElement?.className || '') + ' ' + (el.id || '')).toLowerCase();
+                    if (cls.includes('clearchoice') || cls.includes('clear-choice') || cls.includes('resetchorice') || cls.includes('reset-choice')) return true;
+                    if (typeof el.closest === 'function' && el.closest('.clearchoice, .clear-choice, .resetchorice, .reset-choice')) return true;
+                    const forLabel = el.id ? document.querySelector(`label[for="${escapeSelector(el.id)}"]`) : null;
+                    const labelEl = forLabel || el.closest('label') || el.parentElement;
+                    const text = ((labelEl?.innerText || labelEl?.textContent || el.getAttribute('aria-label') || el.value || '')).toLowerCase().trim();
+                    if (text.includes('clear my choice') || text.includes('clear choice') || text.includes('reset answer') || text.includes('deselect') || text === 'clear') {
+                        return true;
+                    }
+                    return false;
+                }
+
+                // ── Discover Question Groups on the page ──────
+                const containerSelectors = [
+                    '.que', '.question_holder', '.quiz_sortable .question', '.display_question',
+                    '.questionBlock', '.takeQuestionDiv', '.contentListItem',
+                    '.freebirdFormviewerViewNumberedItemContainer', '[role="listitem"]',
+                    '.office-form-question', '.form-question', '.mc-question', '.item-container',
+                    '.quiz-question', '.exam-question', '.test-question', 'fieldset',
+                    '[data-question]', '[data-question-id]', '[data-testid*="question"]',
+                    'div[class*="question-container"]', 'div[class*="question_container"]',
+                    'div[class*="QuestionCard"]', 'div[class*="questionCard"]', 'div[class*="Question_"]'
                 ];
-                const candidates = Array.from(document.querySelectorAll(selectors.join(',')));
-                let bestEl = null, bestElScore = 0;
-                candidates.forEach(el => {
-                    const txt = (el.innerText || el.textContent || '').trim();
-                    if (!txt || txt.length > 500) return;
-                    const sc = score(txt, clean);
-                    if (sc > bestElScore) { bestElScore = sc; bestEl = el; }
+
+                const optionControlSelectors = [
+                    'input[type="radio"]:not([disabled])', 'input[type="checkbox"]:not([disabled])',
+                    '[role="radio"]:not([aria-disabled="true"])', '[role="checkbox"]:not([aria-disabled="true"])',
+                    '[role="option"]:not([aria-disabled="true"])',
+                    'button[class*="choice"]', 'button[class*="option"]',
+                    '[data-choice]', '[data-option]', '.quiz-option', '.choice-item', '.option-item',
+                    '.answer label', '.options label', 'div[class*="option"]', 'div[class*="choice"]'
+                ];
+
+                const rawContainers = Array.from(document.querySelectorAll(containerSelectors.join(','))).filter(c => {
+                    return isElementVisible(c) && Array.from(c.querySelectorAll(optionControlSelectors.join(','))).some(i => !isControlElement(i));
                 });
-                if (bestEl && bestElScore >= 65) {
-                    fire(bestEl);
-                    // Also check/fire nested input
-                    const ni = bestEl.querySelector('input[type="radio"],input[type="checkbox"]')
-                              || bestEl.parentElement?.querySelector('input[type="radio"],input[type="checkbox"]');
-                    if (ni && !ni.checked) { ni.checked = true; fire(ni); }
+
+                const questionContainers = rawContainers.filter(parent => {
+                    return !rawContainers.some(child => child !== parent && parent.contains(child));
+                });
+
+                let questionGroups = [];
+
+                if (questionContainers.length > 0) {
+                    questionGroups = questionContainers.map(container => ({
+                        container,
+                        inputs: Array.from(container.querySelectorAll(optionControlSelectors.join(',')))
+                            .filter(inp => (isElementVisible(inp) || isElementVisible(inp.parentElement)) && !isControlElement(inp))
+                    })).filter(g => g.inputs.length > 0);
+                } else {
+                    // Fallback: group native inputs by name or container
+                    const allInputs = Array.from(document.querySelectorAll(optionControlSelectors.join(',')))
+                        .filter(inp => (isElementVisible(inp) || isElementVisible(inp.parentElement)) && !isControlElement(inp));
+
+                    if (allInputs.length > 0) {
+                        const nameMap = new Map();
+                        allInputs.forEach(inp => {
+                            const n = inp.name || inp.closest('table tr, fieldset, form, .form-group')?.className || '__single__';
+                            if (!nameMap.has(n)) nameMap.set(n, []);
+                            nameMap.get(n).push(inp);
+                        });
+
+                        for (const [, inputs] of nameMap.entries()) {
+                            questionGroups.push({ container: inputs[0].closest('form') || document.body, inputs });
+                        }
+                    }
                 }
-            });
 
-            if (autoNavigate === false) return;
+                let selectedCount = 0;
+                const usedElements = new Set();
+                const matchedItems = [];
 
-            // ── Navigate (Next / Finish / Submit) ────────────
-            const allBtns = Array.from(document.querySelectorAll(
-                'button:not([disabled]),input[type="button"]:not([disabled]),' +
-                'input[type="submit"]:not([disabled]),a[role="button"]'
-            )).filter(b => {
-                const s = window.getComputedStyle(b);
-                return s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0';
-            });
+                // ── Execute selection per question group ──────
+                if (questionGroups.length > 1 && aiAnswers.length > 1) {
+                    // Multi-question page: match each question group with its assigned AI answer
+                    for (let gIdx = 0; gIdx < questionGroups.length; gIdx++) {
+                        const group = questionGroups[gIdx];
+                        const targetAns = aiAnswers[gIdx];
+                        if (!targetAns) continue;
 
-            function findBtn(kws, excl = []) {
-                return allBtns.find(b => {
-                    const t = (b.innerText || b.value || b.textContent || '').trim().toLowerCase();
-                    return t && kws.some(k => t.includes(k)) && !excl.some(k => t.includes(k));
+                        const inputs = group.inputs;
+                        const isSingleGroup = inputs.some(i => i.type === 'radio' || i.getAttribute('role') === 'radio' || (i.name && inputs.filter(x => x.name === i.name).length > 1));
+
+                        let bestCandidate = null;
+                        let bestInput = null;
+                        let bestScore = 0;
+
+                        for (let oIdx = 0; oIdx < inputs.length; oIdx++) {
+                            const inp = inputs[oIdx];
+                            if (usedElements.has(inp)) continue;
+
+                            const forLabel = inp.id ? document.querySelector(`label[for="${escapeSelector(inp.id)}"]`) : null;
+                            const labelEl = forLabel || inp.closest('label') || inp.parentElement;
+                            const labelTxt = (labelEl?.innerText || labelEl?.textContent || inp.getAttribute('aria-label') || '').trim();
+                            const valTxt = (inp.value || '').trim();
+                            const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+                            const letter = letters[oIdx] || String(oIdx + 1);
+
+                            const sc = scoreOptionMatch(labelTxt, valTxt, letter, targetAns, oIdx, inputs.length);
+                            if (sc > bestScore) {
+                                bestScore = sc;
+                                bestCandidate = labelEl || inp;
+                                bestInput = inp;
+                            }
+                        }
+
+                        if (bestCandidate && bestScore >= 75) {
+                            const alreadySelected = isElementSelected(bestCandidate, bestInput);
+                            if (!alreadySelected) {
+                                if (bestInput && !bestInput.checked) bestInput.checked = true;
+                                dispatchSelectionEvents(bestCandidate);
+                                if (bestInput && bestInput !== bestCandidate) dispatchSelectionEvents(bestInput);
+                            }
+                            const verified = isElementSelected(bestCandidate, bestInput) || !alreadySelected;
+                            if (verified) {
+                                selectedCount++;
+                                usedElements.add(bestInput || bestCandidate);
+                                matchedItems.push({ question: gIdx + 1, answer: targetAns, score: bestScore });
+                            }
+                        }
+                    }
+                } else {
+                    // Single question or multi-select checkbox question
+                    const targetInputs = questionGroups[0]?.inputs || Array.from(document.querySelectorAll(optionControlSelectors.join(',')))
+                        .filter(inp => (isElementVisible(inp) || isElementVisible(inp.parentElement)) && !isControlElement(inp));
+
+                    const isSingleChoice = targetInputs.some(i => i.type === 'radio' || i.getAttribute('role') === 'radio' || (i.name && targetInputs.filter(x => x.name === i.name).length > 1));
+
+                    if (isSingleChoice) {
+                        // Strictly select at most ONE option for a single-choice question
+                        let bestCandidate = null;
+                        let bestInput = null;
+                        let bestScore = 0;
+                        let bestAns = null;
+
+                        for (const targetAns of aiAnswers) {
+                            for (let oIdx = 0; oIdx < targetInputs.length; oIdx++) {
+                                const inp = targetInputs[oIdx];
+                                const forLabel = inp.id ? document.querySelector(`label[for="${escapeSelector(inp.id)}"]`) : null;
+                                const labelEl = forLabel || inp.closest('label') || inp.parentElement;
+                                const labelTxt = (labelEl?.innerText || labelEl?.textContent || inp.getAttribute('aria-label') || '').trim();
+                                const valTxt = (inp.value || '').trim();
+                                const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+                                const letter = letters[oIdx] || String(oIdx + 1);
+
+                                const sc = scoreOptionMatch(labelTxt, valTxt, letter, targetAns, oIdx, targetInputs.length);
+                                if (sc > bestScore && sc >= 75) {
+                                    bestScore = sc;
+                                    bestCandidate = labelEl || inp;
+                                    bestInput = inp;
+                                    bestAns = targetAns;
+                                }
+                            }
+                        }
+
+                        if (bestCandidate && bestScore >= 75) {
+                            const alreadySelected = isElementSelected(bestCandidate, bestInput);
+                            if (!alreadySelected) {
+                                if (bestInput && !bestInput.checked) bestInput.checked = true;
+                                dispatchSelectionEvents(bestCandidate);
+                                if (bestInput && bestInput !== bestCandidate) dispatchSelectionEvents(bestInput);
+                            }
+                            const verified = isElementSelected(bestCandidate, bestInput) || !alreadySelected;
+                            if (verified) {
+                                selectedCount = 1;
+                                usedElements.add(bestInput || bestCandidate);
+                                matchedItems.push({ answer: bestAns, score: bestScore });
+                            }
+                        }
+                    } else {
+                        // Multi-select checkbox question
+                        for (const targetAns of aiAnswers) {
+                            let bestCandidate = null;
+                            let bestInput = null;
+                            let bestScore = 0;
+
+                            for (let oIdx = 0; oIdx < targetInputs.length; oIdx++) {
+                                const inp = targetInputs[oIdx];
+                                if (usedElements.has(inp)) continue;
+
+                                const forLabel = inp.id ? document.querySelector(`label[for="${escapeSelector(inp.id)}"]`) : null;
+                                const labelEl = forLabel || inp.closest('label') || inp.parentElement;
+                                const labelTxt = (labelEl?.innerText || labelEl?.textContent || inp.getAttribute('aria-label') || '').trim();
+                                const valTxt = (inp.value || '').trim();
+                                const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+                                const letter = letters[oIdx] || String(oIdx + 1);
+
+                                const sc = scoreOptionMatch(labelTxt, valTxt, letter, targetAns, oIdx, targetInputs.length);
+                                if (sc > bestScore && sc >= 75) {
+                                    bestScore = sc;
+                                    bestCandidate = labelEl || inp;
+                                    bestInput = inp;
+                                }
+                            }
+
+                            if (bestCandidate && bestScore >= 75) {
+                                const alreadySelected = isElementSelected(bestCandidate, bestInput);
+                                if (!alreadySelected) {
+                                    if (bestInput && !bestInput.checked) bestInput.checked = true;
+                                    dispatchSelectionEvents(bestCandidate);
+                                    if (bestInput && bestInput !== bestCandidate) dispatchSelectionEvents(bestInput);
+                                }
+                                const verified = isElementSelected(bestCandidate, bestInput) || !alreadySelected;
+                                if (verified) {
+                                    selectedCount++;
+                                    usedElements.add(bestInput || bestCandidate);
+                                    matchedItems.push({ answer: targetAns, score: bestScore });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                const statusEl = document.getElementById('kenowa-exam-status');
+
+                // ── STRICT SAFETY GUARD: Do NOT navigate if nothing was selected! ──
+                if (selectedCount === 0) {
+                    if (statusEl) statusEl.textContent = '⚠️ Selection failed';
+                    return {
+                        success: false,
+                        selectedCount: 0,
+                        navigated: false,
+                        error: `Could not match or select answers: ${aiAnswers.join(', ')}`
+                    };
+                }
+
+                if (statusEl) statusEl.textContent = `Selected (${selectedCount})✓`;
+
+                if (autoNavigate === false) {
+                    return { success: true, selectedCount, navigated: false, matchedItems };
+                }
+
+                // ── Verification succeeded! Safely handle navigation ──
+                await new Promise(resolve => setTimeout(resolve, 1200));
+
+                const allBtns = Array.from(document.querySelectorAll(
+                    'button:not([disabled]), input[type="button"]:not([disabled]), input[type="submit"]:not([disabled]), a[role="button"]:not([disabled]), a.btn, a.button, a[class*="next"], [role="button"]:not([disabled]), div.btn, span.btn'
+                )).filter(b => {
+                    const s = window.getComputedStyle(b);
+                    return s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0';
                 });
-            }
 
-            const statusEl = document.getElementById('kenowa-exam-status');
+                function findBtn(kws, excl = []) {
+                    return allBtns.find(b => {
+                        const t = (b.innerText || b.value || b.textContent || '').trim().toLowerCase();
+                        return t && kws.some(k => t.includes(k)) && !excl.some(k => t.includes(k));
+                    });
+                }
 
-            if (shouldSubmit) {
-                const btn = findBtn(['finish attempt','finish quiz','finish exam','finish test','submit all','submit quiz','submit exam'])
-                         || findBtn(['submit'], ['cancel','save answer','discard']);
-                if (btn) { setTimeout(() => btn.click(), 900); if (statusEl) statusEl.textContent = 'Submitting…'; }
-                return;
-            }
+                if (shouldSubmit) {
+                    const finishBtn = findBtn(['finish attempt', 'finish quiz', 'finish exam', 'finish test', 'submit all', 'submit quiz', 'submit exam'])
+                                   || findBtn(['submit'], ['cancel', 'save answer', 'discard']);
+                    if (finishBtn) {
+                        if (statusEl) statusEl.textContent = 'Submitting…';
+                        finishBtn.click();
+                        return { success: true, selectedCount, navigated: true, action: 'submit' };
+                    }
+                }
 
-            // Wait 1.5s for framework to register the selection, then click Next
-            setTimeout(() => {
                 const nextBtn =
+                    findBtn(['next page'], []) ||
                     findBtn(['save and next'], []) ||
                     findBtn(['next question'], []) ||
-                    findBtn(['next'], ['finish','submit','previous','prev','back','cancel']) ||
-                    findBtn(['continue'], ['finish','submit','cancel']) ||
-                    findBtn(['forward'], ['finish','submit']);
+                    findBtn(['next'], ['finish', 'submit', 'previous', 'prev', 'back', 'cancel']) ||
+                    findBtn(['continue'], ['finish', 'submit', 'cancel']) ||
+                    findBtn(['forward'], ['finish', 'submit']);
 
                 if (nextBtn) {
-                    nextBtn.click();
                     if (statusEl) statusEl.textContent = 'Next →';
+                    nextBtn.click();
+                    return { success: true, selectedCount, navigated: true, action: 'next' };
                 } else if (hasFinishBtn) {
-                    const finBtn = findBtn(['finish attempt','finish quiz','finish exam','finish test'])
+                    const finBtn = findBtn(['finish attempt', 'finish quiz', 'finish exam', 'finish test'])
                                 || findBtn(['finish'], ['cancel']);
-                    if (finBtn) { finBtn.click(); if (statusEl) statusEl.textContent = 'Finishing…'; }
+                    if (finBtn) {
+                        if (statusEl) statusEl.textContent = 'Finishing…';
+                        finBtn.click();
+                        return { success: true, selectedCount, navigated: true, action: 'finish' };
+                    }
                 }
-            }, 1500);
-            // If nothing else, wait a bit
-            setTimeout(() => { if (statusEl) statusEl.textContent = 'Waiting…'; }, 2000);
-        }
-    }).catch(() => {});
+
+                return { success: true, selectedCount, navigated: false, action: 'none' };
+            }
+        });
+        return injection?.[0]?.result || { success: false, selectedCount: 0, navigated: false, error: 'Script injection returned no result' };
+    } catch(err) {
+        return { success: false, selectedCount: 0, navigated: false, error: err?.message || String(err) };
+    }
 }
 
 // ── Navigation-only clicker (no answer to select) ─────────────
 async function clickNextOrFinish(tabId, shouldSubmit, hasFinishBtn, isDelayEnabled) {
-    if (typeof tabId !== 'number') return;
-    await chrome.scripting.executeScript({
-        target: { tabId },
-        args: [shouldSubmit, hasFinishBtn],
-        func: (shouldSubmit, hasFinishBtn) => {
-            const all = Array.from(document.querySelectorAll(
-                'button:not([disabled]),input[type="button"]:not([disabled]),input[type="submit"]:not([disabled]),a[role="button"]'
-            )).filter(b => { const s = window.getComputedStyle(b); return s.display !== 'none' && s.visibility !== 'hidden'; });
-            const find = (kws, excl = []) => all.find(b => {
-                const t = (b.innerText || b.value || b.textContent || '').trim().toLowerCase();
-                return t && kws.some(k => t.includes(k)) && !excl.some(k => t.includes(k));
-            });
-            setTimeout(() => {
+    if (typeof tabId !== 'number') return { navigated: false };
+    try {
+        const res = await chrome.scripting.executeScript({
+            target: { tabId },
+            args: [shouldSubmit, hasFinishBtn],
+            func: (shouldSubmit, hasFinishBtn) => {
+                const all = Array.from(document.querySelectorAll(
+                    'button:not([disabled]),input[type="button"]:not([disabled]),input[type="submit"]:not([disabled]),a[role="button"]:not([disabled]),a.btn,a.button,a[class*="next"],[role="button"]:not([disabled]),div.btn,span.btn'
+                )).filter(b => { const s = window.getComputedStyle(b); return s.display !== 'none' && s.visibility !== 'hidden'; });
+                const find = (kws, excl = []) => all.find(b => {
+                    const t = (b.innerText || b.value || b.textContent || '').trim().toLowerCase();
+                    return t && kws.some(k => t.includes(k)) && !excl.some(k => t.includes(k));
+                });
                 if (shouldSubmit) {
                     const b = find(['finish attempt','finish quiz','finish exam','submit all','submit quiz']) || find(['submit'],['cancel','save']);
-                    if (b) b.click();
+                    if (b) { b.click(); return { navigated: true, action: 'submit' }; }
                 } else {
-                    const b = find(['save and next','next question']) || find(['next'],['finish','submit','previous','back']) || find(['continue'],['finish','submit']);
-                    if (b) { b.click(); return; }
+                    const b = find(['next page', 'save and next', 'next question']) || find(['next'],['finish','submit','previous','back']) || find(['continue'],['finish','submit']);
+                    if (b) { b.click(); return { navigated: true, action: 'next' }; }
                     if (hasFinishBtn) {
                         const fb = find(['finish attempt','finish quiz','finish exam','finish test']) || find(['finish'],['cancel']);
-                        if (fb) fb.click();
+                        if (fb) { fb.click(); return { navigated: true, action: 'finish' }; }
                     }
                 }
-            }, 700);
-        }
-    }).catch(() => {});
+                return { navigated: false };
+            }
+        });
+        return res?.[0]?.result || { navigated: false };
+    } catch (_) {
+        return { navigated: false };
+    }
 }
 
 // ── Context Menu Listener ──────────────────────────────────────

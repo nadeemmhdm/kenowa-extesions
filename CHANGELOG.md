@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.19.11] - 2026-11-24
+
+### Fixed & Enhanced
+- **Moodle / LMS "Clear my choice" Option Filtering:**
+  - Fixed exam mode and quiz answer mode mistakenly extracting Moodle's 5th reset control (`Clear my choice` / `.clearchoice`) as an answer option (Option E) and attempting to select or click it.
+  - Implemented `isControlElementOrText` in `extractPageQuestions` (`utils.js`) and `isControlElement` in `executeExamClicker` (`sidepanel.js`) to completely exclude choice-clearing and reset controls from question detection, option parsing, and clicker targeting.
+- **Capsule Insufficient Context & Seamless Web Search / AI Fallback:**
+  - Fixed an issue where real-time or general queries returned `"I couldn't find enough information in the selected Capsule..."` when Capsule was active.
+  - Neutralized negative system prompt injection in `retrieveCapsuleContext` (`utils.js`) by setting empty context on insufficient evidence, allowing clean fallback.
+  - Updated chat mode (`sidepanel.js`), exam mode, and background selection answer flow (`background.js`) to check `isCapsuleSufficient && capsuleContext` before injecting Capsule context, seamlessly cascading to Web Search (Priority 2) and AI model base knowledge (Priority 3).
+- **Web Search Typo Normalization & Entity Disambiguation:**
+  - Enhanced `buildSearchQuery` and `calculateResultRelevance` (`utils.js`) to handle common user typos (e.g. `inda` → `India`, `how is this current president of inda` → `current "president of India" official incumbent`).
+  - Added strict homonym filtering to disqualify unrelated physics ("electric current") and banking ("current account") results when answering leadership and head-of-state queries.
+  - Updated authoritative verification to correctly identify Smt. Droupadi Murmu as President of India and Shri Narendra Modi as Prime Minister.
+- **Collapsible Web Sources & Citations UI (Default Hide Mode):**
+  - Added native support for `<details>` and `<summary>` disclosure blocks in `parseMarkdown` (`utils.js`).
+  - Enforced **default hide / collapse mode** by automatically stripping `open` attributes from sources accordions so source lists start collapsed and tidy.
+  - Styled `.noora-sources-accordion`, `summary.noora-sources-summary`, and `.noora-sources-body` in `style.css` and `selection.js` with modern dark glassmorphic design, `[Expand] ▾` / `[Collapse] ▴` dynamic indicators, and clickable hyperlinks.
+  - Prevented raw HTML tag flashing in typewriter animation when responses include structured accordions.
+
+---
+
 ## [2.19.10] - 2026-11-21
 
 ### Fixed & Enhanced

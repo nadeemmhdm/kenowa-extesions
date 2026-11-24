@@ -71,6 +71,15 @@
     .response-body .copy-code-btn { padding:4px 7px; border:1px solid rgba(255,255,255,.12); font-size:10px; }
     .response-body pre { overflow:auto; margin:0; padding:9px; white-space:pre; }
     .response-body pre code { padding:0; color:#e0e5f1; background:transparent; }
+    details.noora-sources-accordion { margin-top:8px; border:1px solid rgba(255,255,255,.12); border-radius:8px; background:rgba(255,255,255,.03); overflow:hidden; }
+    summary.noora-sources-summary { display:flex; align-items:center; justify-content:space-between; padding:6px 10px; font-size:11px; font-weight:600; color:#abb9d7; cursor:pointer; list-style:none; }
+    summary.noora-sources-summary::-webkit-details-marker { display:none; }
+    summary.noora-sources-summary:hover { background:rgba(255,255,255,.05); color:#fff; }
+    summary.noora-sources-summary::after { content:'[Expand] ▾'; font-size:10px; color:#848ba1; margin-left:auto; }
+    details.noora-sources-accordion[open] > summary.noora-sources-summary::after { content:'[Collapse] ▴'; color:#7c9cff; }
+    .noora-sources-body { border-top:1px solid rgba(255,255,255,.08); padding:8px 10px; font-size:11px; display:flex; flex-direction:column; gap:6px; background:rgba(0,0,0,.2); }
+    .noora-sources-body a { color:#7c9cff; text-decoration:none; word-break:break-all; }
+    .noora-sources-body a:hover { text-decoration:underline; }
     .thinking-status { display:flex; align-items:center; gap:8px; padding:0 14px 10px; color:#aebcda; font-size:11px; }
     .thinking-status[hidden] { display:none; }
     .thinking-orbit { width:13px; height:13px; flex:0 0 auto; border:2px solid rgba(116,158,255,.25); border-top-color:#85aaff; border-right-color:#b19cff; border-radius:50%; animation:orbit .75s linear infinite; }
@@ -299,6 +308,69 @@
     shadow.style.display = 'block';
   };
 
+  const formatQuickAnswerText = (rawAnswer, promptText) => {
+    if (!rawAnswer) return '';
+    let text = String(rawAnswer).trim();
+    const arrayMatch = text.match(/\[\s*(?:"[^"]*"(?:\s*,\s*"[^"]*")*)\s*\]/);
+    const hasHeader = /###\s*(?:🎯\s*)?Correct Answers?/i.test(text);
+    if (!arrayMatch && !hasHeader) return text;
+
+    const optionRegex = /(?:^|\n)\s*(?:\[|\()?([a-hA-H1-9])(?:\]|\))?[\.\)\:\-]?\s*([^\n]+)/g;
+    const optionsMap = new Map();
+    let m;
+    while ((m = optionRegex.exec(promptText || '')) !== null) {
+      const letter = m[1].toUpperCase();
+      const optText = m[2].trim();
+      if (optText.length > 0) {
+        optionsMap.set(letter, `${letter}. ${optText}`);
+      }
+    }
+
+    let items = [];
+    if (arrayMatch) {
+      try { items = JSON.parse(arrayMatch[0]); } catch (_) {}
+    }
+    if (!items.length) {
+      const listMatches = text.match(/[-*]\s*(?:\[|\()?([a-hA-H1-9])(?:[\.\)\:\s\]]|$)/g);
+      if (listMatches) {
+        items = listMatches.map(l => l.replace(/^[-*]\s*\[?/, '').replace(/[\]\.\s]/g, ''));
+      }
+    }
+
+    if (items.length > 0) {
+      const resolved = [];
+      const seen = new Set();
+      for (const item of items) {
+        const clean = String(item).trim().replace(/^["']|["']$/g, '').trim();
+        const letterMatch = clean.match(/^(?:option|choice)?\s*(?:\[|\()?([a-hA-H1-9])(?:[\.\)\:\-\]]+|$)/i);
+        const letter = letterMatch ? letterMatch[1].toUpperCase() : '';
+        const isPlaceholder = /^(?:[a-hA-H1-9][\.\)\:\-\]]*\s*)?(?:option\s*text|choice\s*text|option\s*\d+|choice\s*\d+|option|choice)$/i.test(clean);
+        const resolvedFromMap = letter ? optionsMap.get(letter) : null;
+        const resolvedText = resolvedFromMap || (!isPlaceholder && clean.length > 2 && !clean.includes('["') ? clean : null);
+        const finalText = resolvedText || (letter ? `${letter}.` : clean);
+        if (!seen.has(finalText)) {
+          seen.add(finalText);
+          resolved.push(finalText);
+        }
+      }
+
+      if (resolved.length > 0) {
+        const formatted = resolved.length === 1
+          ? `### 🎯 Correct Answer\n\n**${resolved[0]}**`
+          : `### 🎯 Correct Answers\n\n` + resolved.map(r => `- **${r}**`).join('\n');
+        
+        const explanation = text.replace(/###\s*(?:🎯\s*)?Correct Answers?[\s\S]*?(?=\n\n[A-Z]|\n\n###|$)/i, '')
+                                .replace(/\[\s*(?:"[^"]*"(?:\s*,\s*"[^"]*")*)\s*\]/g, '')
+                                .trim();
+        if (explanation.length > 20 && !explanation.startsWith('###')) {
+          return `${formatted}\n\n${explanation}`;
+        }
+        return formatted;
+      }
+    }
+    return text;
+  };
+
   const sendSelectionPrompt = (prompt, initial = false, options = {}) => {
     if (requestBusy || cardDismissed) return;
     const thisCard = cardToken;
@@ -329,12 +401,17 @@
         responseTimeoutId = null;
         setComposerBusy(false);
         if (result?.ok) {
-          let answer = result.text || 'The model returned an empty answer.';
+          let answer = formatQuickAnswerText(result.text || 'The model returned an empty answer.', prompt);
+          const capsuleSources = (Array.isArray(result.capsuleSources) ? result.capsuleSources : []).filter(Boolean);
+          if (capsuleSources.length) {
+            answer += `\n\n📚 **Capsule Sources:**\n` + capsuleSources.map(s => `- **${s.name}**${s.heading ? ` (${s.heading})` : ''}`).join('\n');
+          }
           const sources = (Array.isArray(result.sources) ? result.sources : []).filter(source => {
             try { return ['http:', 'https:'].includes(new URL(source.url).protocol); } catch (_) { return false; }
           });
-          if (sources.length) answer += `\n\n## Sources\n${sources.map(source => `- [${String(source.title || 'Source').replace(/[\[\]]/g, '')}](${source.url.replace(/[)]/g, '%29')})`).join('\n')}`;
-          else if (result.webSearchWarning) answer += '\n\n> **Live search note:** I could not retrieve readable web sources for this question, so current facts are not verified.';
+          if (sources.length) {
+            answer += `\n\n<details class="noora-sources-accordion">\n<summary class="noora-sources-summary">🌐 <strong>Web Sources & Citations</strong> (${sources.length} retrieved)</summary>\n<div class="noora-sources-body">\n${sources.map((source, sIdx) => `${sIdx + 1}. [${String(source.title || 'Source').replace(/[\[\]]/g, '')}](${source.url.replace(/[)]/g, '%29')})`).join('\n')}\n</div>\n</details>`;
+          } else if (result.webSearchWarning && !capsuleSources.length) answer += '\n\n> **Live search note:** I could not retrieve readable web sources for this question, so current facts are not verified.';
           activeConversation = [...history, { role: 'user', content: prompt }, { role: 'assistant', content: answer }].slice(-16);
           lastPromptText = prompt;
           lastPromptHistory = history.slice(-16);
@@ -397,10 +474,72 @@
       hideToolbar();
       sendSelectionPrompt(selection.text, true);
     };
-    toolbar.append(copy, send);
+
+    const quickAnswerBtn = document.createElement('button');
+    quickAnswerBtn.className = 'send';
+    quickAnswerBtn.textContent = '⚡ Quick Answer';
+    quickAnswerBtn.setAttribute('aria-label', 'Scan page and solve question');
+    quickAnswerBtn.title = 'Scan page and solve question';
+    quickAnswerBtn.onclick = event => {
+      event.stopPropagation();
+      hideToolbar();
+      triggerQuickAnswerScan();
+    };
+
+    toolbar.append(copy, send, quickAnswerBtn);
     root.appendChild(toolbar);
     shadow.style.display = 'block';
     position(toolbar, selection.rect);
+  };
+
+  const triggerQuickAnswerScan = () => {
+    hideToolbar();
+    if (responseCard) clearResponseCard();
+    cardDismissed = false;
+    cardToken++;
+
+    let pageExtraction = null;
+    if (typeof extractPageQuestions === 'function') {
+      try {
+        pageExtraction = extractPageQuestions(document);
+      } catch (_) {}
+    }
+
+    const detected = pageExtraction?.detectedQuestions || [];
+    let promptText = '';
+
+    if (detected.length > 0) {
+      const q = detected[0];
+      const choicesBlock = q.options.map(o => `  [${o.letter}] ${o.text}`).join('\n');
+      const firstOpt = q.options[0];
+      const optLetter = firstOpt?.letter || 'A';
+      const optSnippet = firstOpt?.text ? firstOpt.text.replace(/"/g, "'").slice(0, 40) : 'Choice text';
+      promptText = `Question:\n${q.stem}\n\nAvailable Choices:\n${choicesBlock}\n\nCRITICAL RULES:\n1. Choose the correct answer strictly from the Available Choices provided above.\n2. Return ONLY a valid JSON array containing the chosen option letter and its exact text from the choices above: ["${optLetter}. ${optSnippet}"].\n   Do NOT return dummy words like "Option Text". Return the real text of the chosen option.\n3. Include NOTHING else.`;
+    } else {
+      const currentSel = window.getSelection()?.toString().trim();
+      if (currentSel) {
+        promptText = currentSel;
+      } else {
+        const bodyText = document.body?.innerText?.slice(0, 1500) || '';
+        promptText = bodyText ? `Identify and answer the question on this page:\n\n${bodyText}` : '';
+      }
+    }
+
+    if (!promptText) return;
+
+    if (!lastRangeRect) {
+      const winW = typeof window !== 'undefined' ? window.innerWidth : 800;
+      lastRangeRect = {
+        left: Math.max(20, winW - 420),
+        right: winW - 20,
+        top: 60,
+        bottom: 96,
+        width: 380,
+        height: 36
+      };
+    }
+
+    sendSelectionPrompt(promptText, true);
   };
 
   const refresh = () => {
@@ -411,6 +550,12 @@
 
   document.addEventListener('mouseup', event => { if (!event.composedPath().includes(shadow)) setTimeout(refresh, 0); }, true);
   document.addEventListener('keyup', event => { if (!event.composedPath().includes(shadow)) refresh(); }, true);
+  document.addEventListener('keydown', event => {
+    if ((event.ctrlKey || event.metaKey) && event.shiftKey && (event.key === 'Q' || event.key === 'q')) {
+      event.preventDefault();
+      triggerQuickAnswerScan();
+    }
+  }, true);
   window.addEventListener('scroll', () => { if (toolbar && lastRangeRect) position(toolbar, lastRangeRect); if (responseCard && lastRangeRect) position(responseCard, lastRangeRect, 12); }, true);
   document.addEventListener('mousedown', event => { if (toolbar && !shadow.contains(event.target)) hideToolbar(); }, true);
   document.addEventListener('click', event => {
@@ -436,10 +581,31 @@
       return;
     }
     if (message?.type !== 'kenowa-selection-response') return;
+    if (activeRequestId && message.requestId && message.requestId !== activeRequestId) return;
     if (!message.partial) {
       clearTimeout(responseTimeoutId);
       responseTimeoutId = null;
+      setComposerBusy(false);
     }
-    showResponse(message.text || 'Kenowa returned an empty response.', Boolean(message.partial));
+    let assistantContent = message.text || 'Kenowa returned an empty response.';
+    if (!message.partial) {
+      assistantContent = formatQuickAnswerText(assistantContent, pendingPrompt || lastPromptText);
+    }
+    const turns = pendingPrompt 
+      ? [...pendingHistory, { role: 'user', content: pendingPrompt }, { role: 'assistant', content: assistantContent }]
+      : (activeConversation.length && activeConversation[activeConversation.length - 1].role === 'assistant')
+        ? [...activeConversation.slice(0, -1), { role: 'assistant', content: assistantContent }]
+        : [...activeConversation, { role: 'assistant', content: assistantContent }];
+
+    if (!message.partial) {
+      activeConversation = turns.slice(-16);
+      if (pendingPrompt) {
+        lastPromptText = pendingPrompt;
+        lastPromptHistory = pendingHistory.slice(-16);
+        pendingPrompt = '';
+        pendingHistory = [];
+      }
+    }
+    showConversation(turns, Boolean(message.partial));
   });
 })();

@@ -57,7 +57,7 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
           </button>
           <div class="brand-area">
-            <span class="brand-name">Kenowa 2.19.10</span>
+            <span class="brand-name">Kenowa 2.19.11</span>
             <img src="logo.png" alt="Logo" class="brand-logo">
             <span id="pro-badge" class="pro-badge hidden">PRO</span>
           </div>
@@ -125,6 +125,9 @@
               <button id="sq-btn" class="icon-btn-small" title="Solve Question — Ctrl+Shift+Q">
                 <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
               </button>
+              <button id="web-search-toggle-btn" class="icon-btn-small" title="Web Search (Auto)" type="button">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              </button>
               <button id="scan-page-btn" class="icon-btn-small" title="Scan Webpage / RAG (Alt+S)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
               </button>
@@ -159,7 +162,7 @@
         <div class="settings-update-row">
           <div>
             <div style="font-weight:600;font-size:0.84rem;color:var(--text-main);">Kenowa Updates</div>
-            <div id="settings-update-status" style="font-size:0.75rem;color:var(--text-sub);margin-top:2px;">Version v2.19.10 · Checking...</div>
+            <div id="settings-update-status" style="font-size:0.75rem;color:var(--text-sub);margin-top:2px;">Version v2.19.11 · Checking...</div>
           </div>
           <button id="check-update-btn" class="settings-check-btn" type="button">Check Now</button>
         </div>
@@ -270,6 +273,18 @@
             <span><strong>Suggested follow-up messages</strong><small>Show relevant prompt chips below each answer.</small></span>
             <span class="ui-switch"><input type="checkbox" id="settings-suggestions-input" checked><span class="ui-switch-track"></span></span>
           </label>
+          <label class="switch-row" for="settings-web-search-input">
+            <span><strong>AI-Powered Web Search</strong><small>Search the web for up-to-date facts and reliable sources.</small></span>
+            <span class="ui-switch"><input type="checkbox" id="settings-web-search-input" checked><span class="ui-switch-track"></span></span>
+          </label>
+          <div id="web-search-mode-row" style="margin-top:6px;margin-bottom:10px;">
+            <label for="settings-web-search-mode-input" class="preference-sub-label">Web Search Strategy</label>
+            <select id="settings-web-search-mode-input" style="width:100%;border:1px solid var(--border);padding:8px;border-radius:6px;box-sizing:border-box;background:var(--bg-dark);color:var(--text-main);font-size:0.82rem;">
+              <option value="auto">Auto (Search when Capsule has insufficient info or for live facts)</option>
+              <option value="always">Always Search (Always include web context)</option>
+              <option value="off">Off (Disable web search)</option>
+            </select>
+          </div>
           <label for="settings-fallback-order-input" class="preference-sub-label">Fallback order</label>
           <input id="settings-fallback-order-input" type="text" placeholder="groq,mistral,noora,cloudflare_ai_gateway,openrouter,gemini" class="preference-order-input">
         </div>
